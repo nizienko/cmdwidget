@@ -1,0 +1,13 @@
+<idea-plugin>
+    <dependencies>
+        <module name="intellij.platform.backend"/>
+        <module name="intellij.platform.kernel.backend"/>
+        <module name="intellij.platform.rpc.backend"/>
+        <module name="cmdwidget.shared"/>
+    </dependencies>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <platform.rpc.backend.remoteApiProvider implementation="com.github.nizienko.cmdwidget.backend.CmdWidgetRpcApiProvider"/>
+        <postStartupActivity implementation="com.github.nizienko.cmdwidget.backend.CmdWidgetRuntimeActivity"/>
+    </extensions>
+</idea-plugin>

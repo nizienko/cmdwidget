@@ -1,0 +1,14 @@
+<idea-plugin>
+    <dependencies>
+        <module name="intellij.platform.frontend"/>
+        <module name="cmdwidget.shared"/>
+    </dependencies>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable parentId="tools" id="com.github.nizienko.cmdwidget.settings"
+                                 displayName="Cmd Widget"
+                                 instance="com.github.nizienko.cmdwidget.frontend.CmdWidgetConfigurable"/>
+        <statusBarWidgetFactory id="CmdWidget.Host"
+                                implementation="com.github.nizienko.cmdwidget.frontend.CmdWidgetFactory"/>
+    </extensions>
+</idea-plugin>

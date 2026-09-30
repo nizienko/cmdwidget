@@ -1,0 +1,29 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.github.nizienko.cmdwidget</id>
+
+    <!-- Public plugin name should be written in Title Case.
+     Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
+    <name>Cmd Widget</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor url="https://github.com/nizienko">nizienko</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
+    <description><![CDATA[
+        Cmd Widget is an IntelliJ Platform status bar plugin under development.<br>
+        This build provides independent text widgets from saved global definitions in ordinary
+        IDE and split mode, with backend command execution, bounded diagnostics, and stale-value markers.
+        Configure widgets in Settings / Preferences &gt; Tools &gt; Cmd Widget, and explicitly test
+        unsaved commands in a selected project's backend context. Global definitions are persisted
+        and synchronized to the backend. Execution hosts: macOS and Linux.
+    ]]></description>
+
+    <content>
+        <module name="cmdwidget.shared" loading="required"/>
+        <module name="cmdwidget.frontend"/>
+        <module name="cmdwidget.backend"/>
+    </content>
+</idea-plugin>

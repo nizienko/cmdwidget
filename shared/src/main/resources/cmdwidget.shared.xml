@@ -1,0 +1,9 @@
+<idea-plugin>
+    <dependencies>
+        <module name="intellij.platform.rpc"/>
+    </dependencies>
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationSettings service="com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService"/>
+        <rdct.remoteSettingProvider implementation="com.github.nizienko.cmdwidget.shared.CmdWidgetRemoteSettingInfoProvider"/>
+    </extensions>
+</idea-plugin>
