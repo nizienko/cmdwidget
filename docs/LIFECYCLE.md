@@ -1,5 +1,14 @@
 # Stage 1: independent status bar widget prototype
 
+Release 1.0 supersedes the historical prototype below: the maintainer approved
+one factory-owned `CmdWidget.Host` with separate Swing command elements. Elements
+retain their own values, tooltips, popups, and progress bars; reconciliation
+preserves instances across updates and reordering. The host disposes removed
+elements and clears its children on EDT during shutdown. Production code no
+longer adds or removes sibling platform widgets through internal StatusBar APIs.
+Current lifecycle tests cover single platform registration, ordering/layout,
+empty-container visibility, element disposal, and late delivery after shutdown.
+
 This is the accepted historical lifecycle milestone. The prototype menu action has
 since been removed, and stage 4 displays live backend values. Use
 [the current presentation checklist](PRESENTATION.md) for the latest build.

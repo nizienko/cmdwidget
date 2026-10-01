@@ -31,11 +31,21 @@ dependencies {
 }
 
 intellijPlatform {
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = "261"
+            untilBuild = provider { null }
+        }
+    }
     splitMode = true
     pluginInstallationTarget = SplitModeAware.PluginInstallationTarget.BOTH
 }
 
 // Keep a separate ordinary IDE launch alongside the scaffold's split-mode tasks.
+tasks.processResources {
+    from("LICENSE") { into("META-INF") }
+}
+
 tasks.named<RunIdeTask>("runIde") {
     splitMode = false
 }

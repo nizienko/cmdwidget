@@ -34,7 +34,7 @@ internal class AdaptiveWidgetPanel : TextPanel() {
         try {
             canvas.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             val barWidth = barWidth()
-            val barHeight = minOf(JBUI.scale(6), height).coerceAtLeast(0)
+            val barHeight = minOf(JBUI.scale(8), height).coerceAtLeast(0)
             val y = (height - barHeight) / 2
             canvas.color = JBColor.namedColor("ProgressBar.background", JBColor(0xDADADA, 0x45494A))
             canvas.fillRoundRect(insets.left, y, barWidth, barHeight, barHeight, barHeight)

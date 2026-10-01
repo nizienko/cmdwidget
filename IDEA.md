@@ -215,7 +215,11 @@ foo bar baz
 
 ## Status bar
 
-Each enabled configuration should appear as an independent status bar widget in each project window.
+Each enabled configuration appears as an independent visual command element in
+each project window. One factory-owned `CustomStatusBarWidget` contains these
+elements; commands still execute, update, and display diagnostics independently.
+This architecture was explicitly approved for release 1.0 to avoid internal
+dynamic status-bar registration/removal APIs.
 
 Example:
 
@@ -227,9 +231,12 @@ Widgets should update independently.
 
 Changing one widget should not require recreating or refreshing all other widgets unless necessary.
 
-Instances use stable IDs derived from configuration IDs. Preserve configuration order where the platform permits it.
+Elements use stable configuration IDs. Preserve configuration order inside the
+container without recreating retained elements.
 
-Prototype dynamic creation and disposal of multiple widgets early against the target platform. Standard factory registration is the starting point; a user-defined number of independent widgets requires lifecycle verification. Do not silently substitute one combined widget if this proves difficult.
+Use standard factory registration for the single platform widget. Reconcile its
+Swing children on EDT and release their tooltips/popups on removal, project
+closure, and plugin unload. Do not dynamically register sibling platform widgets.
 
 ## Settings UI
 

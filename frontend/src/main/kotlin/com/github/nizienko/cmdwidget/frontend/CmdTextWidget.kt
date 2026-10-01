@@ -2,15 +2,14 @@ package com.github.nizienko.cmdwidget.frontend
 
 import com.intellij.ide.HelpTooltip
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.openapi.ui.popup.Balloon
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.JBPopupListener
 import com.intellij.openapi.ui.popup.LightweightWindowEvent
-import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.StatusBar
-import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.ui.ClickListener
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
@@ -25,14 +24,14 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JButton
 
-/** A separate platform widget for every definition; IDs survive presentation edits. */
+/** An independently updated command element inside the factory-owned status bar widget. */
 internal class CmdTextWidget(
     val definitionId: String, label: String, tooltip: String = "", var details: WidgetDetails? = null,
     percentage: Double? = null,
-) :
-    CustomStatusBarWidget, StatusBarWidget.TextPresentation {
+) : Disposable {
     private val panel = lazy {
         AdaptiveWidgetPanel().apply {
+            border = JBUI.CurrentTheme.StatusBar.Widget.border()
             text = this@CmdTextWidget.label
             this.percentage = this@CmdTextWidget.percentage
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
@@ -65,14 +64,9 @@ internal class CmdTextWidget(
             if (panel.isInitialized() && !disposed) installTooltip()
         }
 
-    override fun ID(): String = "CmdWidget.$definitionId"
-    override fun getComponent(): JComponent = panel.value
-    override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
-    override fun getText(): String = label
-    override fun getAlignment(): Float = 0f
-    override fun getTooltipText(): String = tooltip
+    val component: JComponent get() = panel.value
 
-    override fun install(statusBar: StatusBar) {
+    fun install(statusBar: StatusBar) {
         this.statusBar = statusBar
         installTooltip()
     }

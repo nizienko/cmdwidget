@@ -12,23 +12,24 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.awt.Dimension
+import com.intellij.util.ui.JBUI
+import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
 
 /**
- * Factory-owned lifecycle anchor. It renders no values: each value has its own
- * StatusBarWidget, added through the public StatusBar API and owned by this disposable.
- * The platform disposes the anchor on project closure and factory/plugin unload.
+ * One factory-owned platform widget containing independently updated command elements.
+ * The platform owns installation/removal; this host owns only its Swing children.
  */
 internal class CmdWidgetHost(
     private val scope: CoroutineScope? = null,
     private val observe: (suspend ((BackendStateEvent) -> Unit) -> Unit)? = null,
 ) : CustomStatusBarWidget {
-    private val component = JPanel().apply {
+    private val panel = JPanel().apply {
         isOpaque = false
         isVisible = false
-        preferredSize = Dimension(0, 0)
+        layout = BoxLayout(this, BoxLayout.X_AXIS)
+        border = JBUI.Borders.empty()
     }
     private var statusBar: StatusBar? = null
     private val widgets = linkedMapOf<String, CmdTextWidget>()
@@ -42,15 +43,14 @@ internal class CmdWidgetHost(
     @Volatile private var disposed = false
 
     override fun ID(): String = ID
-    override fun getComponent(): JComponent = component
+    override fun getComponent(): JComponent = panel
 
     override fun install(statusBar: StatusBar) {
         ApplicationManager.getApplication().assertIsDispatchThread()
         check(this.statusBar == null || this.statusBar === statusBar)
         if (disposed) return
         this.statusBar = statusBar
-        // Factory installation can happen while the platform is building the status bar.
-        // Wait until that pass finishes before dynamically adding sibling widgets.
+        // Defer observation until factory installation has finished.
         ApplicationManager.getApplication().invokeLater({
             if (!disposed && this.statusBar === statusBar) {
                 if (observe == null) reconcile(PROTOTYPE)
@@ -103,39 +103,38 @@ internal class CmdWidgetHost(
         if (disposed) return
         val bar = statusBar ?: return
         require(definitions.map { it.id }.distinct().size == definitions.size)
-        val desiredIds = definitions.map { it.id }
-        val currentIds = widgets.keys.toList()
-        val unchangedPrefix = currentIds.zip(desiredIds).takeWhile { (current, desired) -> current == desired }.size
-        // StatusBar anchors are fixed at insertion; updateWidget only refreshes the
-        // presentation. Recreate the changed suffix to apply order and new anchors.
-        // removeWidget disposes instances, so they must not be added again.
-        for (id in currentIds.drop(unchangedPrefix)) {
+        val desiredIds = definitions.map { it.id }.toSet()
+        for (id in widgets.keys.filter { it !in desiredIds }) {
             val widget = widgets.remove(id)!!
-            if (bar.getWidget(widget.ID()) === widget) bar.removeWidget(widget.ID())
+            panel.remove(widget.component)
+            Disposer.dispose(widget)
         }
-        var anchor = "after $ID"
-        for ((id, text, tooltip, details, percentage) in definitions) {
+        for ((index, presentation) in definitions.withIndex()) {
+            val (id, text, tooltip, details, percentage) = presentation
             val existing = widgets[id]
-            if (existing == null) {
+            val element = if (existing == null) {
                 val widget = CmdTextWidget(id, text, tooltip, details, percentage)
                 widgets[id] = widget
-                // The parentDisposable overload queues removal by ID on off-EDT
-                // disposal, which can remove a replacement instance. Own the widget
-                // directly and let this host perform identity-checked EDT removal.
-                bar.addWidget(widget, anchor)
-                Disposer.register(this, widget)
+                widget.install(bar)
+                panel.add(widget.component)
+                widget
             } else {
                 existing.details = details
                 if (existing.label != text || existing.tooltip != tooltip || existing.percentage != percentage) {
                     existing.label = text
                     existing.tooltip = tooltip
                     existing.percentage = percentage
-                    bar.updateWidget(existing.ID())
                 }
+                existing
             }
-            anchor = "after CmdWidget.$id"
+            panel.setComponentZOrder(element.component, index)
         }
+        panel.isVisible = definitions.isNotEmpty()
+        panel.revalidate()
+        panel.repaint()
     }
+
+    internal fun element(id: String): CmdTextWidget? = widgets[id.removePrefix("CmdWidget.")]
 
     /** Deliberately manual: exercises update, remove, and re-add without timers or commands. */
     fun cyclePrototype() {
@@ -151,13 +150,15 @@ internal class CmdWidgetHost(
         disposed = true
         subscription?.cancel()
         val cleanup = Runnable {
-            val bar = statusBar
             statusBar = null
             for (widget in widgets.values) {
-                // A queued cleanup must never remove a replacement host's widget.
-                if (bar?.getWidget(widget.ID()) === widget) bar.removeWidget(widget.ID())
+                Disposer.dispose(widget)
             }
             widgets.clear()
+            panel.removeAll()
+            panel.isVisible = false
+            panel.revalidate()
+            panel.repaint()
         }
         val application = ApplicationManager.getApplication()
         if (application.isDispatchThread) cleanup.run()

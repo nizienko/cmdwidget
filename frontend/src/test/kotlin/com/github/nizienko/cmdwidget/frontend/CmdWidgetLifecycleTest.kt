@@ -1,7 +1,6 @@
 package com.github.nizienko.cmdwidget.frontend
 
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.impl.status.IdeStatusBarImpl
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -47,28 +46,32 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         return host
     }
 
+    private fun IdeStatusBarImpl.element(id: String): CmdTextWidget? =
+        (getWidget(CmdWidgetHost.ID) as? CmdWidgetHost)?.element(id)
+
     fun testIndependentUpdateRemovalAndRestoration() {
         val bar = bar()
         val host = install(bar)
-        val git = bar.getWidget("CmdWidget.prototype-git")!!
-        val disk = bar.getWidget("CmdWidget.prototype-disk")!!
-        assertEquals("Git: main", (git.getPresentation() as StatusBarWidget.TextPresentation).getText())
-        assertEquals("Disk: 126G", (disk.getPresentation() as StatusBarWidget.TextPresentation).getText())
+        val git = bar.element("CmdWidget.prototype-git")!!
+        val disk = bar.element("CmdWidget.prototype-disk")!!
+        assertEquals("Git: main", git.label)
+        assertEquals("Disk: 126G", disk.label)
 
         host.cyclePrototype()
-        assertSame(git, bar.getWidget(git.ID()))
-        assertSame(disk, bar.getWidget(disk.ID()))
-        assertEquals("Disk: updated", (disk.getPresentation() as StatusBarWidget.TextPresentation).getText())
+        assertSame(git, bar.element("CmdWidget.${git.definitionId}"))
+        assertSame(disk, bar.element("CmdWidget.${disk.definitionId}"))
+        assertEquals("Disk: updated", disk.label)
 
         host.cyclePrototype()
-        assertSame(git, bar.getWidget(git.ID()))
-        assertNull(bar.getWidget(disk.ID()))
+        assertSame(git, bar.element("CmdWidget.${git.definitionId}"))
+        assertNull(bar.element("CmdWidget.${disk.definitionId}"))
         assertTrue(Disposer.isDisposed(disk))
 
         host.cyclePrototype()
-        assertSame(git, bar.getWidget(git.ID()))
-        assertNotSame(disk, bar.getWidget(disk.ID()))
-        assertEquals(3, bar.allWidgets!!.size) // invisible lifecycle host plus two independent values
+        assertSame(git, bar.element("CmdWidget.${git.definitionId}"))
+        assertNotSame(disk, bar.element("CmdWidget.${disk.definitionId}"))
+        assertEquals(1, bar.allWidgets!!.size)
+        assertEquals(2, host.getComponent().componentCount)
     }
 
     fun testTwoWindowsKeepSeparateInstancesAndDisposeOnlyOwnedWidgets() {
@@ -76,20 +79,20 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val secondBar = bar()
         val first = install(firstBar)
         val second = install(secondBar)
-        val secondGit = secondBar.getWidget("CmdWidget.prototype-git")!!
-        assertNotSame(firstBar.getWidget(secondGit.ID()), secondGit)
+        val secondGit = secondBar.element("CmdWidget.prototype-git")!!
+        assertNotSame(firstBar.element("CmdWidget.${secondGit.definitionId}"), secondGit)
         first.cyclePrototype()
         first.cyclePrototype()
-        assertNotNull(secondBar.getWidget("CmdWidget.prototype-disk"))
+        assertNotNull(secondBar.element("CmdWidget.prototype-disk"))
 
         // Same factory disposal path is used on extension removal/plugin unload.
         CmdWidgetFactory().disposeWidget(first)
-        assertNull(firstBar.getWidget("CmdWidget.prototype-git"))
-        assertSame(secondGit, secondBar.getWidget(secondGit.ID()))
+        assertNull(firstBar.element("CmdWidget.prototype-git"))
+        assertSame(secondGit, secondBar.element("CmdWidget.${secondGit.definitionId}"))
         assertFalse(Disposer.isDisposed(secondGit))
 
         Disposer.dispose(second)
-        assertNull(secondBar.getWidget(secondGit.ID()))
+        assertNull(secondBar.element("CmdWidget.${secondGit.definitionId}"))
         assertTrue(Disposer.isDisposed(secondGit))
     }
 
@@ -99,46 +102,73 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val original = CmdWidgetHost.PROTOTYPE
         fun assertOrder(definitions: List<Pair<String, String>>) {
             val components = definitions.map { (id, text) ->
-                val widget = bar.getWidget("CmdWidget.$id") as CmdTextWidget
+                val widget = bar.element("CmdWidget.$id") as CmdTextWidget
                 assertEquals(text, widget.label)
                 assertFalse(Disposer.isDisposed(widget))
                 widget.component
             }
             val positions = components.map {
-                (it.parent.layout as java.awt.GridBagLayout).getConstraints(it).gridx
+                it.parent.getComponentZOrder(it)
             }
             assertTrue("Widgets must follow the configured order", positions.zipWithNext().all { (left, right) -> left < right })
-            assertEquals(definitions.size + 1, bar.allWidgets!!.size)
+            assertEquals(1, bar.allWidgets!!.size)
+            assertEquals(definitions.size, host.getComponent().componentCount)
         }
 
         assertOrder(original)
+        val originalElements = original.map { (id, _) -> bar.element("CmdWidget.$id")!! }
         host.reconcile(original.reversed())
         assertOrder(original.reversed())
-        val reordered = original.map { (id, _) -> bar.getWidget("CmdWidget.$id")!! }
+        originalElements.forEach { assertSame(it, bar.element("CmdWidget.${it.definitionId}")) }
+        val reordered = original.map { (id, _) -> bar.element("CmdWidget.$id")!! }
         host.reconcile(original.reversed())
-        reordered.forEach { assertSame(it, bar.getWidget(it.ID())) }
+        reordered.forEach { assertSame(it, bar.element("CmdWidget.${it.definitionId}")) }
         host.reconcile(original)
         assertOrder(original)
 
         Disposer.dispose(host)
-        original.forEach { (id, _) -> assertNull(bar.getWidget("CmdWidget.$id")) }
+        original.forEach { (id, _) -> assertNull(bar.element("CmdWidget.$id")) }
     }
 
     fun testInsertingWidgetBetweenExistingWidgetsUpdatesPositions() {
         val bar = bar()
         val host = install(bar)
-        val first = bar.getWidget("CmdWidget.prototype-git")!!
+        val first = bar.element("CmdWidget.prototype-git")!!
         val definitions = listOf(CmdWidgetHost.PROTOTYPE[0], "middle" to "Middle", CmdWidgetHost.PROTOTYPE[1])
         host.reconcile(definitions)
-        assertSame(first, bar.getWidget(first.ID()))
+        assertSame(first, bar.element("CmdWidget.${first.definitionId}"))
         val positions = definitions.map { (id, text) ->
-            val widget = bar.getWidget("CmdWidget.$id") as CmdTextWidget
+            val widget = bar.element("CmdWidget.$id") as CmdTextWidget
             assertEquals(text, widget.label)
             val component = widget.component
-            (component.parent.layout as java.awt.GridBagLayout).getConstraints(component).gridx
+            component.parent.getComponentZOrder(component)
         }
         assertTrue("The new widget must appear between existing widgets", positions.zipWithNext().all { (left, right) -> left < right })
-        assertEquals(4, bar.allWidgets!!.size)
+        assertEquals(1, bar.allWidgets!!.size)
+        assertEquals(3, host.getComponent().componentCount)
+        val panel = host.getComponent()
+        panel.size = panel.preferredSize
+        panel.doLayout()
+        val children = panel.components.toList()
+        assertTrue(children.all { it.width > 0 && it.height > 0 })
+        assertTrue(children.zipWithNext().all { (left, right) -> left.x + left.width <= right.x })
+    }
+
+    fun testEmptyDefinitionsHideContainerAndRestoringRetainsSinglePlatformWidget() {
+        val bar = bar()
+        val host = install(bar)
+        val elements = CmdWidgetHost.PROTOTYPE.map { (id, _) -> host.element(id)!! }
+        host.reconcile(emptyList())
+        assertFalse(host.getComponent().isVisible)
+        assertEquals(0, host.getComponent().componentCount)
+        assertEquals(0, host.getComponent().preferredSize.width)
+        assertEquals(1, bar.allWidgets!!.size)
+        elements.forEach { assertTrue(Disposer.isDisposed(it)) }
+
+        host.reconcile(CmdWidgetHost.PROTOTYPE)
+        assertTrue(host.getComponent().isVisible)
+        assertEquals(2, host.getComponent().componentCount)
+        assertEquals(1, bar.allWidgets!!.size)
     }
 
     fun testDisposalBeforeDeferredInstallAndReopenDoNotDuplicateWidgets() {
@@ -147,16 +177,16 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         bar.addWidget(pending, testRootDisposable)
         Disposer.dispose(pending)
         PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        assertNull(bar.getWidget("CmdWidget.prototype-git"))
+        assertNull(bar.element("CmdWidget.prototype-git"))
         bar.removeWidget(CmdWidgetHost.ID)
 
         val reopened = install(bar)
         reopened.reconcile(CmdWidgetHost.PROTOTYPE)
         reopened.reconcile(CmdWidgetHost.PROTOTYPE)
-        assertEquals(3, bar.allWidgets!!.size)
+        assertEquals(1, bar.allWidgets!!.size)
         Disposer.dispose(reopened)
-        assertNull(bar.getWidget("CmdWidget.prototype-git"))
-        assertNull(bar.getWidget("CmdWidget.prototype-disk"))
+        assertNull(bar.element("CmdWidget.prototype-git"))
+        assertNull(bar.element("CmdWidget.prototype-disk"))
     }
 
     fun testParentDisposalReleasesAllWidgets() {
@@ -165,13 +195,13 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val host = CmdWidgetHost()
         bar.addWidget(host, windowLifetime)
         PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        val git = bar.getWidget("CmdWidget.prototype-git")!!
-        val disk = bar.getWidget("CmdWidget.prototype-disk")!!
+        val git = bar.element("CmdWidget.prototype-git")!!
+        val disk = bar.element("CmdWidget.prototype-disk")!!
 
         Disposer.dispose(windowLifetime)
         assertNull(bar.getWidget(CmdWidgetHost.ID))
-        assertNull(bar.getWidget(git.ID()))
-        assertNull(bar.getWidget(disk.ID()))
+        assertNull(bar.element("CmdWidget.${git.definitionId}"))
+        assertNull(bar.element("CmdWidget.${disk.definitionId}"))
         assertTrue(Disposer.isDisposed(git))
         assertTrue(Disposer.isDisposed(disk))
     }
@@ -188,11 +218,11 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val replacement = CmdWidgetHost()
         bar.addWidget(replacement, testRootDisposable)
         replacement.reconcile(CmdWidgetHost.PROTOTYPE)
-        val git = bar.getWidget("CmdWidget.prototype-git")!!
+        val git = bar.element("CmdWidget.prototype-git")!!
 
         PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        assertSame(git, bar.getWidget(git.ID()))
-        assertEquals(3, bar.allWidgets!!.size)
+        assertSame(git, bar.element("CmdWidget.${git.definitionId}"))
+        assertEquals(1, bar.allWidgets!!.size)
     }
 
     private fun state(version: Long, text: String, enabled: Boolean = true): ProjectWidgetState {
@@ -208,7 +238,7 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val bar = bar()
         val host = install(bar)
         host.accept(BackendStateEvent.Snapshot(1, state(1, "42%")))
-        val widget = bar.getWidget("CmdWidget.live") as CmdTextWidget
+        val widget = bar.element("CmdWidget.live") as CmdTextWidget
         val component = widget.component as AdaptiveWidgetPanel
         val percentageWidth = component.preferredSize.width
         assertEquals(42.0, component.percentage!!, 0.001)
@@ -229,7 +259,7 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         assertEquals(42.0, component.percentage!!, 0.001)
         assertEquals("42% [stale]", component.text)
         host.accept(BackendStateEvent.Snapshot(2, state(2, "abc")))
-        assertSame(widget, bar.getWidget(widget.ID()))
+        assertSame(widget, bar.element("CmdWidget.${widget.definitionId}"))
         assertSame(component, widget.component)
         assertNull(component.percentage)
         assertEquals("abc", component.text)
@@ -254,8 +284,8 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val bar = bar()
         val host = install(bar)
         host.accept(BackendStateEvent.Snapshot(1, state(10, "current")))
-        val widget = bar.getWidget("CmdWidget.live")!!
-        fun text() = (widget.getPresentation() as StatusBarWidget.TextPresentation).getText()
+        val widget = bar.element("CmdWidget.live")!!
+        fun text() = widget.label
         host.accept(BackendStateEvent.Snapshot(1, state(9, "obsolete")))
         assertEquals("current", text())
         host.accept(BackendStateEvent.Disconnected(1))
@@ -263,13 +293,13 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         host.accept(BackendStateEvent.Snapshot(1, state(11, "too late")))
         assertEquals("current [stale]", text())
         host.accept(BackendStateEvent.Snapshot(2, state(1, "reconnected")))
-        assertSame(widget, bar.getWidget(widget.ID()))
+        assertSame(widget, bar.element("CmdWidget.${widget.definitionId}"))
         assertEquals("reconnected", text())
         host.accept(BackendStateEvent.Disconnected(1))
         host.accept(BackendStateEvent.Snapshot(1, state(99, "old connection")))
         assertEquals("reconnected", text())
         host.accept(BackendStateEvent.Snapshot(2, state(2, "disabled", enabled = false)))
-        assertNull(bar.getWidget(widget.ID()))
+        assertNull(bar.element("CmdWidget.${widget.definitionId}"))
     }
 
     fun testFailureRetainsNameTooltipWidgetAndMarksSuccessStale() {
@@ -277,18 +307,17 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val host = install(bar)
         val initial = state(1, "connected")
         host.accept(BackendStateEvent.Snapshot(1, initial))
-        val widget = bar.getWidget("CmdWidget.live")!!
+        val widget = bar.element("CmdWidget.live")!!
         val failed = initial.widgets.single().copy(latestResult = initial.widgets.single().latestResult!!.copy(
             exitCode = 7, stdout = "", stderr = "diagnostic", completedAtEpochMillis = 2_000,
         ))
         host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(2, listOf(failed))))
-        assertSame(widget, bar.getWidget(widget.ID()))
-        val presentation = widget.getPresentation() as StatusBarWidget.TextPresentation
-        assertEquals("connected [stale]", presentation.getText())
-        assertEquals("Live\n(empty)", presentation.getTooltipText())
+        assertSame(widget, bar.element("CmdWidget.${widget.definitionId}"))
+        assertEquals("connected [stale]", widget.label)
+        assertEquals("Live\n(empty)", widget.tooltip)
         Disposer.dispose(host)
         host.accept(BackendStateEvent.Snapshot(2, state(3, "after disposal")))
-        assertNull(bar.getWidget(widget.ID()))
+        assertNull(bar.element("CmdWidget.${widget.definitionId}"))
     }
 
     fun testPopupDetailsUpdateWhenDisplayedValueDoesNotChange() {
@@ -296,12 +325,12 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val host = install(bar)
         val initial = state(1, "connected")
         host.accept(BackendStateEvent.Snapshot(1, initial))
-        val widget = bar.getWidget("CmdWidget.live") as CmdTextWidget
+        val widget = bar.element("CmdWidget.live") as CmdTextWidget
         val changed = initial.widgets.single().let {
             it.copy(configuration = it.configuration.copy(command = "echo updated", refreshIntervalSeconds = 23))
         }
         host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(2, listOf(changed))))
-        assertSame(widget, bar.getWidget(widget.ID()))
+        assertSame(widget, bar.element("CmdWidget.${widget.definitionId}"))
         assertEquals("connected", widget.label)
         assertEquals("echo updated", widget.details!!.command)
         assertEquals("Every 23 s", widget.details!!.parameters.toMap()["Refresh"])
@@ -322,7 +351,7 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
             id = "local", name = "Local", executionTarget = ExecutionTarget.FRONTEND,
         ))
         host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(1, listOf(backend, local)), connected = false))
-        fun text(id: String) = (bar.getWidget("CmdWidget.$id")!!.getPresentation() as StatusBarWidget.TextPresentation).getText()
+        fun text(id: String) = bar.element("CmdWidget.$id")!!.label
         assertEquals("remote [stale]", text("live"))
         assertEquals("remote", text("local"))
         val nextResult = local.latestResult!!.copy(stdout = "updated")
@@ -348,6 +377,6 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         Disposer.dispose(host)
         runBlocking { withTimeout(3_000) { stopped.await() } }
         PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-        assertNull(bar.getWidget("CmdWidget.live"))
+        assertNull(bar.element("CmdWidget.live"))
     }
 }

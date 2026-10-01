@@ -1,14 +1,17 @@
 # Cmd Widgets
 
-Cmd Widget displays the output of your shell commands as independent text widgets
+Cmd Widgets displays the output of your shell commands as independent widgets
 in the IntelliJ IDEA status bar. Definitions are global; each open project runs
 them and keeps its own results. Each widget can execute on the backend or frontend
 host, including in split mode. Existing definitions default to backend execution.
 
-This development build targets IntelliJ IDEA 2026.1.5. Command execution supports
-macOS and Linux hosts. Windows execution and compatibility with other IDE
-versions are not claimed. Manual end-to-end acceptance is still pending; see
-[PLAN.md](PLAN.md).
+Version 1.0 targets IntelliJ Platform builds 261 and newer, without an upper build
+limit. The build and bytecode compatibility checks use IntelliJ IDEA 2026.1.5;
+later builds have not been verified. Command execution supports macOS and Linux
+hosts; Windows execution is not supported.
+
+[Source code](https://github.com/nizienko/cmdwidget) ·
+[Report an issue](https://github.com/nizienko/cmdwidget/issues) · [MIT License](LICENSE)
 
 ## Install and create a widget
 
@@ -18,7 +21,7 @@ Build with Java 21:
 ./gradlew buildPlugin
 ```
 
-Install `build/distributions/cmdwidget-1.0.0-SNAPSHOT.zip` through Settings /
+Install `build/distributions/cmdwidget-1.0.zip` through Settings /
 Preferences → Plugins → gear menu → Install Plugin from Disk. In remote
 development, install the plugin on both frontend and backend.
 
@@ -114,8 +117,7 @@ The settings icon in the balloon opens Cmd Widget settings.
 - Stale/error value: hover for the last result and context. Test the command
   explicitly in that project; check exit status, stderr, timeout, and permissions.
 - Split-mode definitions missing: ensure the plugin is installed on both sides.
-  The frontend owns settings and sends them to the backend. Actual initial
-  synchronization after restart and visual reconnect acceptance remain pending.
+  The frontend owns settings and sends them to the backend.
 - Timeout/truncation: keep commands short and non-interactive. These limits are
   fixed in the MVP.
 - Processes use best-effort bounded descendant cleanup; commands deliberately
@@ -137,6 +139,12 @@ process execution, context resolution, scheduling), `backend` (backend runtime a
 RPC provider), and `frontend` (local runtime, settings, explicit test adapter,
 status bar lifecycle/presentation).
 
+The frontend registers one factory-owned status bar widget containing separate
+command elements. Each element keeps its own value, tooltip, click popup, and
+progress presentation. Reordering preserves retained elements; disabling or
+removing one releases only that element. No dynamic status-bar registration or
+removal APIs are used.
+
 ```sh
 ./gradlew :backend:test :frontend:test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
 ./gradlew runIde
@@ -150,7 +158,10 @@ presentation, widget lifecycle, and settings/test isolation.
 The acceptance procedures are in [settings and testing](docs/SETTINGS.md),
 [execution](docs/EXECUTION.md), [runtime](docs/RUNTIME.md),
 [presentation](docs/PRESENTATION.md), and [persistence](docs/PERSISTENCE.md).
-[PLAN.md](PLAN.md) records completed implementation and pending manual checks;
-[verification status](docs/VERIFICATION.md) records the passing target-build
-offline Plugin Verifier result and API portability warnings.
+[PLAN.md](PLAN.md) records implementation history;
+[verification status](docs/VERIFICATION.md) records automated checks and release
+acceptance. The maintainer reports that most manual scenarios passed; remaining
+scenarios will be followed up through user feedback. Report problems through
+[GitHub Issues](https://github.com/nizienko/cmdwidget/issues), including the IDE
+version, execution host OS, and ordinary or remote development mode.
 Marketplace publication is a separate release step.

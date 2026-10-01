@@ -4,6 +4,16 @@ This plan implements the MVP defined in [IDEA.md](IDEA.md). The repository alrea
 
 ## Implementation status (2026-10-01)
 
+Release update: the maintainer reports passing most manual scenarios and accepts
+collecting feedback for the rest. Version 1.0 is being prepared with the MIT
+license, source/issue links, and since-build 261 without an upper build limit.
+The stage notes below preserve the earlier implementation and verification history;
+their pending manual gates no longer block release by the maintainer's decision.
+The maintainer subsequently approved one factory-owned platform widget containing
+separate command elements to eliminate internal status-bar APIs. This supersedes
+the earlier requirement for dynamic independent platform widgets; command
+execution, per-element presentation, ordering, and interactions remain independent.
+
 Stage 1 is accepted: the user confirmed that visual checks passed. The initial
 scaffold builds against IntelliJ IDEA 2026.1.5.
 The frontend now has a registered factory-owned lifecycle anchor and two independent,
