@@ -7,29 +7,27 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
+import com.intellij.ui.CheckBoxList
+import com.intellij.ui.DoubleClickListener
+import com.intellij.ui.JBColor
+import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBList
-import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Component
+import java.awt.event.MouseEvent
 import java.util.UUID
-import javax.swing.DefaultListCellRenderer
-import javax.swing.DefaultListModel
-import javax.swing.JButton
-import javax.swing.JComboBox
+import javax.swing.JCheckBox
 import javax.swing.JComponent
-import javax.swing.JList
 import javax.swing.JPanel
 
-class CmdWidgetConfigurable : SearchableConfigurable, Configurable.NoScroll {
+class CmdWidgetConfigurable(private val project: Project) : SearchableConfigurable, Configurable.NoScroll {
     private var panel: CmdWidgetSettingsPanel? = null
     private val settings get() = service<CmdWidgetSettingsService>()
     override fun getId() = "com.github.nizienko.cmdwidget.settings"
     override fun getDisplayName() = "Cmd Widget"
-    override fun createComponent(): JComponent = panel ?: CmdWidgetSettingsPanel().also { panel = it }
+    override fun createComponent(): JComponent = panel ?: CmdWidgetSettingsPanel(project).also { panel = it }
     override fun isModified() = panel?.definitions()?.let { it != settings.effectiveDefinitions.value } ?: false
     override fun reset() { panel?.reset(settings.effectiveDefinitions.value) }
     override fun apply() {
@@ -44,72 +42,60 @@ class CmdWidgetConfigurable : SearchableConfigurable, Configurable.NoScroll {
     }
 }
 
-internal class CmdWidgetSettingsPanel : JPanel(BorderLayout(0, 8)) {
-    private val model = DefaultListModel<CmdWidgetConfiguration>()
-    private val list = JBList(model)
-    private val projects = JComboBox<Project>()
+internal class CmdWidgetSettingsPanel(private val project: Project) : JPanel(BorderLayout(0, 8)) {
+    private val list = object : CheckBoxList<CmdWidgetConfiguration>() {
+        override fun adjustRendering(
+            rootComponent: JComponent,
+            checkBox: JCheckBox,
+            index: Int,
+            selected: Boolean,
+            hasFocus: Boolean,
+        ): JComponent = JPanel(BorderLayout(JBUI.scale(8), 0)).apply {
+            background = rootComponent.background
+            border = rootComponent.border
+            rootComponent.border = JBUI.Borders.empty()
+            add(rootComponent, BorderLayout.WEST)
+            add(JBLabel(getItemAt(index)?.command.orEmpty()).apply {
+                putClientProperty("html.disable", true)
+                foreground = JBColor.GRAY
+                font = checkBox.font
+            }, BorderLayout.CENTER)
+        }
+    }
     private val editors = mutableSetOf<WidgetEditorDialog>()
 
     init {
-        val header = JPanel(BorderLayout(0, 8)).apply {
-            add(JBLabel("Global definitions shared by all open projects. Changes take effect on Apply / OK."), BorderLayout.NORTH)
-            add(JPanel(BorderLayout(8, 0)).apply {
-                add(JBLabel("Project for command tests:"), BorderLayout.WEST)
-                add(projects, BorderLayout.CENTER)
-            }, BorderLayout.SOUTH)
-        }
-        ProjectManager.getInstance().openProjects.filter { !it.isDefault && !it.isDisposed }.forEach(projects::addItem)
-        projects.renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, selected: Boolean, focus: Boolean): Component =
-                super.getListCellRendererComponent(list, (value as? Project)?.let { "${it.name} — ${it.basePath ?: "no root"}" } ?: "No open project", index, selected, focus)
-        }
         list.selectionMode = javax.swing.ListSelectionModel.SINGLE_SELECTION
-        list.cellRenderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, selected: Boolean, focus: Boolean): Component {
-                val definition = value as? CmdWidgetConfiguration
-                return super.getListCellRendererComponent(list, definition?.let {
-                    "${if (it.enabled) "Enabled" else "Disabled"}  |  ${it.name}  |  ${it.executionTarget}  |  ${it.refreshIntervalSeconds} s"
-                }, index, selected, focus).apply { (this as javax.swing.JLabel).putClientProperty("html.disable", true) }
+        object : DoubleClickListener() {
+            override fun onDoubleClick(event: MouseEvent): Boolean {
+                val index = list.locationToIndex(event.point)
+                if (index < 0 || list.getCellBounds(index, index)?.contains(event.point) != true) return false
+                list.selectedIndex = index
+                edit(definitions()[index])
+                return true
             }
-        }
-        val actions = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT))
-        fun button(label: String, needsSelection: Boolean = false, action: () -> Unit): JButton = JButton(label).also { button ->
-            actions.add(button)
-            button.addActionListener { action() }
-            if (needsSelection) {
-                button.isEnabled = false
-                list.addListSelectionListener { button.isEnabled = list.selectedIndex >= 0 }
+        }.installOn(list)
+        val decorator = ToolbarDecorator.createDecorator(list)
+            .setAddAction { edit(null) }
+            .setEditAction {
+                if (list.selectedIndex >= 0) edit(definitions()[list.selectedIndex])
             }
-        }
-        button("Add") { edit(null) }
-        button("Edit", true) { edit(list.selectedValue) }
-        button("Remove", true) { model.remove(list.selectedIndex) }
-        button("Enable / Disable", true) {
-            val index = list.selectedIndex
-            model[index] = model[index].copy(enabled = !model[index].enabled)
-        }
-        button("Move up", true) { move(-1) }
-        button("Move down", true) { move(1) }
-        add(header, BorderLayout.NORTH)
-        add(JBScrollPane(list), BorderLayout.CENTER)
-        add(actions, BorderLayout.SOUTH)
+        add(decorator.createPanel(), BorderLayout.CENTER)
     }
 
-    fun definitions() = (0 until model.size()).map(model::get)
-    fun reset(definitions: List<CmdWidgetConfiguration>) {
-        model.clear()
-        definitions.forEach(model::addElement)
+    fun definitions() = (0 until list.model.size).map { index ->
+        requireNotNull(list.getItemAt(index)).copy(enabled = list.isItemSelected(index))
     }
-    private fun move(delta: Int) {
-        val index = list.selectedIndex
-        val target = index + delta
-        if (index < 0 || target !in 0 until model.size()) return
-        val value = model.remove(index)
-        model.add(target, value)
-        list.selectedIndex = target
+    fun reset(definitions: List<CmdWidgetConfiguration>) {
+        list.clear()
+        definitions.forEach(::addDefinition)
+    }
+    private fun addDefinition(definition: CmdWidgetConfiguration) {
+        list.addItem(definition, definition.name, definition.enabled)
+        list.model.getElementAt(list.model.size - 1).putClientProperty("html.disable", true)
     }
     private fun edit(existing: CmdWidgetConfiguration?) {
-        val project = (projects.selectedItem as? Project)?.takeUnless { it.isDisposed || it.isDefault }
+        val project = project.takeUnless { it.isDisposed || it.isDefault }
         val definition = existing ?: CmdWidgetConfiguration(UUID.randomUUID().toString(), "", "")
         val dialog = WidgetEditorDialog(project, definition)
         editors += dialog
@@ -117,8 +103,11 @@ internal class CmdWidgetSettingsPanel : JPanel(BorderLayout(0, 8)) {
             if (dialog.showAndGet()) {
                 val edited = dialog.editor.configuration()
                 val index = definitions().indexOfFirst { it.id == edited.id }
-                if (index < 0) model.addElement(edited) else model[index] = edited
-                list.selectedIndex = if (index < 0) model.size() - 1 else index
+                if (index < 0) addDefinition(edited) else {
+                    list.updateItem(requireNotNull(list.getItemAt(index)), edited, edited.name)
+                    list.setItemSelected(edited, edited.enabled)
+                }
+                list.selectedIndex = if (index < 0) list.model.size - 1 else index
             }
         } finally { editors -= dialog }
     }

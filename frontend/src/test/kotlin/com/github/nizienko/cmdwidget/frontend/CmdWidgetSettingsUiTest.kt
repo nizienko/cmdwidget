@@ -6,10 +6,13 @@ import com.github.nizienko.cmdwidget.shared.CommandResult
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
 import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.intellij.openapi.components.service
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.CheckBoxList
+import com.intellij.ui.CommonActionsPanel
 import java.awt.Container
-import javax.swing.JButton
-import javax.swing.JList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,27 +32,31 @@ class CmdWidgetSettingsUiTest : BasePlatformTestCase() {
     fun testApplyCommitsDraftWhileCancelAndResetDiscardChanges() {
         val settings = service<CmdWidgetSettingsService>()
         val saved = settings.effectiveDefinitions.value
-        val configurable = CmdWidgetConfigurable()
+        val configurable = CmdWidgetConfigurable(project)
         try {
             settings.replaceDefinitions(listOf(first, second))
             val panel = configurable.createComponent() as CmdWidgetSettingsPanel
             configurable.reset()
-            val list = descendants(panel).filterIsInstance<JList<*>>().single()
-            fun click(label: String) = descendants(panel).filterIsInstance<JButton>().single { it.text == label }.doClick()
+            val list = descendants(panel).filterIsInstance<CheckBoxList<*>>().single()
+            val actions = descendants(panel).filterIsInstance<CommonActionsPanel>().single()
+            fun click(button: CommonActionsPanel.Buttons) {
+                val action = requireNotNull(actions.getAnAction(button))
+                action.actionPerformed(AnActionEvent.createFromAnAction(action, null, ActionPlaces.UNKNOWN, DataContext.EMPTY_CONTEXT))
+            }
             list.selectedIndex = 0
-            click("Enable / Disable")
+            list.model.getElementAt(0).isSelected = false
             assertTrue(configurable.isModified)
             assertEquals(listOf(first, second), settings.effectiveDefinitions.value)
             configurable.reset()
             assertFalse(configurable.isModified)
             list.selectedIndex = 0
-            click("Move down")
-            click("Enable / Disable")
+            click(CommonActionsPanel.Buttons.DOWN)
+            list.model.getElementAt(list.selectedIndex).isSelected = false
             configurable.apply()
             assertEquals(listOf(second, first.copy(enabled = false)), settings.effectiveDefinitions.value)
             assertFalse(configurable.isModified)
             list.selectedIndex = 0
-            click("Remove")
+            click(CommonActionsPanel.Buttons.REMOVE)
             assertTrue(configurable.isModified)
             configurable.disposeUIResources() // Settings Cancel closes without Apply.
             assertEquals(listOf(second, first.copy(enabled = false)), settings.effectiveDefinitions.value)

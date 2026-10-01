@@ -63,20 +63,13 @@ internal class WidgetEditorPanel(
         row(5, "Working directory", workingDirectory)
         row(6, "", JBLabel("Empty: default. Relative: project root. Absolute: selected host."))
         row(7, "Execution context", JBScrollPane(context))
-        val policy = JBTextArea(
-            "Runs on the selected host with that user's permissions. With an empty working directory, frontend uses a local project root " +
-                "or the local user's home directory when no local root is available. " +
-                "Commands may have side effects. Inherits the selected host's environment; the non-interactive login shell " +
-                "(-lc) may modify it. This can differ from the IDE terminal. " +
-                "Timeout: 10 seconds. Output capture: 64 KiB per stream. Test does not save settings.",
-        ).apply { isEditable = false; lineWrap = true; wrapStyleWord = true; isOpaque = false }
+
         val buttons = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0)).apply {
             add(testButton); add(cancelButton)
         }
         val bottom = JPanel(BorderLayout(0, 8)).apply {
             add(buttons, BorderLayout.NORTH)
             add(JBScrollPane(output), BorderLayout.CENTER)
-            add(policy, BorderLayout.SOUTH)
         }
         add(fields, BorderLayout.NORTH)
         add(bottom, BorderLayout.CENTER)
