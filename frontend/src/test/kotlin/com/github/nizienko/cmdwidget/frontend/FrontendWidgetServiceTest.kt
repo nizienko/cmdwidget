@@ -11,6 +11,39 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class FrontendWidgetServiceTest : BasePlatformTestCase() {
+    fun testExplicitDirectoryIsUsedLocallyAndMissingDirectoryDoesNotFallBack() = runBlocking(Dispatchers.IO) {
+        val root = java.nio.file.Files.createTempDirectory("cmdwidget-local-directory")
+        val settings = service<CmdWidgetSettingsService>()
+        val saved = settings.effectiveDefinitions.value
+        try {
+            withTimeout(5_000) {
+                val definition = CmdWidgetConfiguration("directory", "Directory", "pwd", 60,
+                    executionTarget = ExecutionTarget.FRONTEND, workingDirectory = root.toString())
+                settings.replaceDefinitions(listOf(definition))
+                val runtime = project.service<FrontendWidgetService>()
+                val snapshot = runtime.state.first { it.widgets.singleOrNull()?.let { widget ->
+                    widget.configuration == definition && widget.latestResult != null
+                } == true }
+                val result = snapshot.widgets.single().latestResult!!
+                assertTrue(result.toString(), result.successful)
+                assertEquals(root.toFile().canonicalPath + "\n", result.stdout)
+                val missing = root.resolve("missing").toString()
+                assertNotNull(runtime.executionContext(missing).error)
+                val changed = definition.copy(workingDirectory = missing)
+                settings.replaceDefinitions(listOf(changed))
+                val failed = runtime.state.first { it.widgets.singleOrNull()?.let { widget ->
+                    widget.configuration == changed && widget.latestResult != null
+                } == true }.widgets.single()
+                assertNotNull(failed.latestResult!!.contextError)
+                assertNull(failed.lastSuccessfulResult)
+                Unit
+            }
+        } finally {
+            settings.replaceDefinitions(saved)
+            com.intellij.openapi.util.io.FileUtil.delete(root.toFile())
+        }
+    }
+
     fun testLocalRuntimeExecutesOnlyFrontendDefinitionsAndStopsAfterTargetChange() = runBlocking(Dispatchers.IO) {
         val settings = service<CmdWidgetSettingsService>()
         val saved = settings.effectiveDefinitions.value

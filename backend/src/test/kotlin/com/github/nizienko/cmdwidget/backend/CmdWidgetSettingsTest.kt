@@ -15,7 +15,8 @@ class CmdWidgetSettingsTest {
 
     @Test fun `XML round trip preserves IDs order and disabled definitions without runtime state`() {
         val settings = CmdWidgetSettingsService()
-        val definitions = listOf(widget("second").copy(enabled = false, executionTarget = ExecutionTarget.FRONTEND), widget("first"))
+        val definitions = listOf(widget("second").copy(enabled = false, executionTarget = ExecutionTarget.FRONTEND,
+            workingDirectory = "subdirectory with spaces"), widget("first").copy(workingDirectory = "/absolute/path"))
         settings.replaceDefinitions(definitions)
         val xml = XmlSerializer.serialize(settings.state)
         val restored = CmdWidgetSettingsService()
@@ -40,6 +41,7 @@ class CmdWidgetSettingsTest {
         assertTrue(definition.id.isNotBlank())
         assertEquals(10, definition.refreshIntervalSeconds)
         assertEquals(ExecutionTarget.BACKEND, definition.executionTarget)
+        assertEquals("", definition.workingDirectory)
         assertTrue(definition.enabled)
         val restored = CmdWidgetSettingsService()
         restored.loadState(XmlSerializer.deserialize(XmlSerializer.serialize(settings.state), CmdWidgetSettingsService.SettingsState::class.java))

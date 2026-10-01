@@ -13,10 +13,11 @@ internal class BackendCmdWidgetRpcApi : CmdWidgetRpcApi {
 
     override suspend fun observe(projectId: ProjectId) = project(projectId).service<CmdWidgetProjectService>().state
 
-    override suspend fun executionContext(projectId: ProjectId) = ExecutionContextResolver.resolve(project(projectId))
+    override suspend fun executionContext(projectId: ProjectId, workingDirectory: String) =
+        ExecutionContextResolver.resolve(project(projectId), workingDirectory)
 
-    override suspend fun testCommand(projectId: ProjectId, command: String) =
-        project(projectId).service<CmdWidgetProjectService>().testCommand(command)
+    override suspend fun testCommand(projectId: ProjectId, command: String, workingDirectory: String) =
+        project(projectId).service<CmdWidgetProjectService>().testCommand(command, workingDirectory)
 }
 
 class CmdWidgetRpcApiProvider : RemoteApiProvider {

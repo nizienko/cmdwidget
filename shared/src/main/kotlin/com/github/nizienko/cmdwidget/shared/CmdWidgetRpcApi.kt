@@ -10,9 +10,9 @@ import kotlinx.coroutines.flow.Flow
 @Rpc
 interface CmdWidgetRpcApi : RemoteApi<Unit> {
     suspend fun observe(projectId: ProjectId): Flow<ProjectWidgetState>
-    suspend fun executionContext(projectId: ProjectId): ExecutionContext
+    suspend fun executionContext(projectId: ProjectId, workingDirectory: String = ""): ExecutionContext
     /** Explicit request only. Does not reconcile definitions or publish live values. */
-    suspend fun testCommand(projectId: ProjectId, command: String): CommandResult
+    suspend fun testCommand(projectId: ProjectId, command: String, workingDirectory: String = ""): CommandResult
 
     companion object {
         suspend fun getInstance(): CmdWidgetRpcApi =

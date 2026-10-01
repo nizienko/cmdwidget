@@ -27,11 +27,12 @@ class CmdWidgetSettingsService : PersistentStateComponentWithModificationTracker
         var presentation: String = PresentationType.TEXT.name
         var enabled: Boolean = true
         var executionTarget: String = ExecutionTarget.BACKEND.name
+        var workingDirectory: String = ""
 
         fun configuration(): CmdWidgetConfiguration? {
             val type = PresentationType.entries.firstOrNull { it.name == presentation } ?: return null
             val target = ExecutionTarget.entries.firstOrNull { it.name == executionTarget } ?: return null
-            return CmdWidgetConfiguration(id, name, command, refreshIntervalSeconds, type, enabled, target)
+            return CmdWidgetConfiguration(id, name, command, refreshIntervalSeconds, type, enabled, target, workingDirectory)
                 .takeIf { it.validationError() == null }
         }
     }
@@ -51,6 +52,7 @@ class CmdWidgetSettingsService : PersistentStateComponentWithModificationTracker
                 presentation = configuration.presentation.name
                 enabled = configuration.enabled
                 executionTarget = configuration.executionTarget.name
+                workingDirectory = configuration.workingDirectory
             }
         }.toMutableList()
     }

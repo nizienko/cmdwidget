@@ -27,6 +27,9 @@ internal class WidgetEditorPanel(
 ) : JPanel(BorderLayout(0, 8)), Disposable {
     internal val name = JBTextField(original.name, 35)
     internal val command = JBTextArea(original.command, 3, 45)
+    internal val workingDirectory = JBTextField(original.workingDirectory, 45).apply {
+        toolTipText = "Literal path on the selected host. Spaces need no quotes; ~ and shell variables are not expanded."
+    }
     internal val interval = JBTextField(original.refreshIntervalSeconds.toString(), 10)
     internal val enabledBox = JBCheckBox("Enabled", original.enabled)
     internal val executionTarget = JComboBox(ExecutionTarget.entries.toTypedArray()).apply {
@@ -57,9 +60,11 @@ internal class WidgetEditorPanel(
         row(2, "Refresh interval (seconds)", interval)
         row(3, "", enabledBox)
         row(4, "Run command on", executionTarget)
-        row(5, "Execution context", JBScrollPane(context))
+        row(5, "Working directory", workingDirectory)
+        row(6, "", JBLabel("Empty: default. Relative: project root. Absolute: selected host."))
+        row(7, "Execution context", JBScrollPane(context))
         val policy = JBTextArea(
-            "Runs on the selected host with that user's permissions. Frontend uses a local project root " +
+            "Runs on the selected host with that user's permissions. With an empty working directory, frontend uses a local project root " +
                 "or the local user's home directory when no local root is available. " +
                 "Commands may have side effects. Inherits the selected host's environment; the non-interactive login shell " +
                 "(-lc) may modify it. This can differ from the IDE terminal. " +
@@ -75,7 +80,7 @@ internal class WidgetEditorPanel(
         }
         add(fields, BorderLayout.NORTH)
         add(bottom, BorderLayout.CENTER)
-        preferredSize = Dimension(650, 530)
+        preferredSize = Dimension(650, 600)
         context.text = if (session == null) "No open project. Command testing is unavailable." else "Loading execution context…"
         executionTarget.addActionListener {
             session?.cancelTest()
@@ -83,6 +88,14 @@ internal class WidgetEditorPanel(
             output.text = ""
             loadContext()
         }
+        workingDirectory.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                session?.cancelTest()
+                running = false
+                output.text = ""
+                loadContext()
+            }
+        })
         command.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = updateButtons()
         })
@@ -92,7 +105,7 @@ internal class WidgetEditorPanel(
             val testedCommand = command.text
             output.text = "Testing command:\n$testedCommand\n\nRunning…"
             updateButtons()
-            session!!.test(testedCommand, selectedTarget()) { result, error ->
+            session!!.test(testedCommand, selectedTarget(), workingDirectory.text) { result, error ->
                 running = false
                 output.text = "Tested command:\n$testedCommand\n\n" + (result?.let(::formatTestResult) ?: error)
                 output.caretPosition = 0
@@ -125,7 +138,7 @@ internal class WidgetEditorPanel(
         updateButtons()
         if (session == null) return
         context.text = "Loading execution context…"
-        session.loadContext(selectedTarget()) { value, error ->
+        session.loadContext(selectedTarget(), workingDirectory.text) { value, error ->
             if (token != contextGeneration) return@loadContext
             if (value != null) showContext(value)
             else { usableContext = false; context.text = error }
@@ -158,7 +171,7 @@ internal class WidgetEditorPanel(
         check(validation() == null)
         return original.copy(name = name.text, command = command.text,
             refreshIntervalSeconds = interval.text.toInt(), enabled = enabledBox.isSelected,
-            executionTarget = selectedTarget())
+            executionTarget = selectedTarget(), workingDirectory = workingDirectory.text)
     }
 
     override fun dispose() { session?.dispose() }

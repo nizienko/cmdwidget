@@ -82,9 +82,11 @@ class CmdWidgetSettingsUiTest : BasePlatformTestCase() {
             editor.command.text = "printf unsaved"
             editor.enabledBox.isSelected = false
             editor.executionTarget.selectedItem = ExecutionTarget.FRONTEND
+            editor.workingDirectory.text = "subdirectory with spaces"
             assertNull(editor.validation())
             assertEquals(first.copy(name = "Renamed", command = "printf unsaved", refreshIntervalSeconds = 5,
-                enabled = false, executionTarget = ExecutionTarget.FRONTEND), editor.configuration())
+                enabled = false, executionTarget = ExecutionTarget.FRONTEND,
+                workingDirectory = "subdirectory with spaces"), editor.configuration())
             assertEquals("pwd", first.command)
         } finally { editor.dispose() }
     }
@@ -105,10 +107,12 @@ class CmdWidgetSettingsUiTest : BasePlatformTestCase() {
         val callbacks = ConcurrentLinkedQueue<() -> Unit>()
         val context = ExecutionContext("backend", "/repo", "/bin/sh", "Linux")
         val tested = CompletableDeferred<String>()
+        val testedDirectory = CompletableDeferred<String>()
         val backend = object : CommandTestBackend {
-            override suspend fun context() = context
-            override suspend fun test(command: String): CommandResult {
+            override suspend fun context(workingDirectory: String) = context
+            override suspend fun test(command: String, workingDirectory: String): CommandResult {
                 tested.complete(command)
+                testedDirectory.complete(workingDirectory)
                 return CommandResult(context, stdout = "unsaved value", exitCode = 0, completedAtEpochMillis = 1)
             }
         }
@@ -125,11 +129,15 @@ class CmdWidgetSettingsUiTest : BasePlatformTestCase() {
             assertTrue(editor.testButton.isEnabled)
             editor.command.text = "printf unsaved"
             editor.name.text = "Unsaved name"
+            editor.workingDirectory.text = "unsaved directory"
+            assertFalse(editor.testButton.isEnabled)
+            deliverNext()
             assertFalse(tested.isCompleted)
             editor.testButton.doClick()
             assertFalse(editor.testButton.isEnabled)
             deliverNext()
             assertEquals("printf unsaved", runBlocking { tested.await() })
+            assertEquals("unsaved directory", runBlocking { testedDirectory.await() })
             assertTrue(editor.output.text.contains("unsaved value"))
             assertEquals(saved, settings.effectiveDefinitions.value)
             assertTrue(editor.testButton.isEnabled)
@@ -144,8 +152,8 @@ class CmdWidgetSettingsUiTest : BasePlatformTestCase() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val callback = CompletableDeferred<() -> Unit>()
         val backend = object : CommandTestBackend {
-            override suspend fun context() = ExecutionContext("backend", null, "/bin/sh", "Linux", "No usable project root directory")
-            override suspend fun test(command: String): CommandResult = error("Invalid context must not execute")
+            override suspend fun context(workingDirectory: String) = ExecutionContext("backend", null, "/bin/sh", "Linux", "No usable project root directory")
+            override suspend fun test(command: String, workingDirectory: String): CommandResult = error("Invalid context must not execute")
         }
         val editor = WidgetEditorPanel(first, CommandTestSession(scope, backend) { callback.complete(it) })
         try {

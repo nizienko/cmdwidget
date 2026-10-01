@@ -22,12 +22,12 @@ class CommandTestSessionTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val local = context.copy(host = "frontend", workingDirectory = "/local")
         val backend = object : CommandTestBackend {
-            override suspend fun context(): ExecutionContext = error("Backend must not be contacted")
-            override suspend fun test(command: String): CommandResult = error("Backend must not be contacted")
+            override suspend fun context(workingDirectory: String): ExecutionContext = error("Backend must not be contacted")
+            override suspend fun test(command: String, workingDirectory: String): CommandResult = error("Backend must not be contacted")
         }
         val frontend = object : CommandTestBackend {
-            override suspend fun context() = local
-            override suspend fun test(command: String) =
+            override suspend fun context(workingDirectory: String) = local
+            override suspend fun test(command: String, workingDirectory: String) =
                 CommandResult(local, stdout = command, exitCode = 0, completedAtEpochMillis = 1)
         }
         val session = CommandTestSession(scope, backend, frontend) { it() }
@@ -53,8 +53,8 @@ class CommandTestSessionTest {
         val callbacks = ConcurrentLinkedQueue<() -> Unit>()
         val commands = mutableListOf<String>()
         val backend = object : CommandTestBackend {
-            override suspend fun context() = context
-            override suspend fun test(command: String): CommandResult {
+            override suspend fun context(workingDirectory: String) = context
+            override suspend fun test(command: String, workingDirectory: String): CommandResult {
                 commands += command
                 return CommandResult(context, stdout = "unsaved", exitCode = 0, completedAtEpochMillis = 1)
             }
@@ -88,8 +88,8 @@ class CommandTestSessionTest {
             val started = CompletableDeferred<Unit>()
             val cancelled = CompletableDeferred<Unit>()
             val backend = object : CommandTestBackend {
-                override suspend fun context() = context
-                override suspend fun test(command: String): CommandResult {
+                override suspend fun context(workingDirectory: String) = context
+                override suspend fun test(command: String, workingDirectory: String): CommandResult {
                     started.complete(Unit)
                     try { awaitCancellation() } finally { cancelled.complete(Unit) }
                 }
@@ -109,8 +109,8 @@ class CommandTestSessionTest {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val queued = CompletableDeferred<() -> Unit>()
             val backend = object : CommandTestBackend {
-                override suspend fun context() = context
-                override suspend fun test(command: String) = CommandResult(context, completedAtEpochMillis = 1)
+                override suspend fun context(workingDirectory: String) = context
+                override suspend fun test(command: String, workingDirectory: String) = CommandResult(context, completedAtEpochMillis = 1)
             }
             val session = CommandTestSession(scope, backend) { queued.complete(it) }
             try {

@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 @Service(Service.Level.PROJECT)
 internal class FrontendWidgetService(private val project: Project, scope: CoroutineScope) {
     private val settings = service<CmdWidgetSettingsService>()
-    private val runtime = ProjectWidgetRuntime(scope, { executionContext() }) { command, context ->
+    private val runtime = ProjectWidgetRuntime(scope, { directory -> executionContext(directory) }) { command, context ->
         service<CommandExecutor>().execute(command, context)
     }
     internal val state = runtime.state
@@ -35,9 +35,9 @@ internal class FrontendWidgetService(private val project: Project, scope: Corout
         }
     }
 
-    fun executionContext(): ExecutionContext {
-        val projectContext = ExecutionContextResolver.resolve(project)
-        return if (projectContext.error == null) projectContext
+    fun executionContext(workingDirectory: String = ""): ExecutionContext {
+        val projectContext = ExecutionContextResolver.resolve(project, workingDirectory)
+        return if (workingDirectory.isNotBlank() || projectContext.error == null) projectContext
         else ExecutionContextResolver.resolve(System.getProperty("user.home"))
     }
 

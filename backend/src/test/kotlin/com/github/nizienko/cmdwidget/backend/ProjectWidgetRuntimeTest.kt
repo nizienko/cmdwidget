@@ -62,6 +62,32 @@ class ProjectWidgetRuntimeTest {
         runtime.close()
     }
 
+    @Test(timeout = 8_000) fun `directory changes restart execution and clear results from previous directory`() = runBlocking {
+        val release = CompletableDeferred<Unit>()
+        val started = CompletableDeferred<Unit>()
+        val runtime = ProjectWidgetRuntime(owner, { directory -> context.copy(workingDirectory = directory) }) { _, ctx ->
+            if (ctx.workingDirectory == "/second") {
+                started.complete(Unit)
+                release.await()
+            }
+            CommandResult(ctx, stdout = ctx.workingDirectory!!, exitCode = 0, completedAtEpochMillis = 1)
+        }
+        val initial = definition(interval = 60).copy(workingDirectory = "/first")
+        runtime.reconcile(listOf(initial))
+        val first = withTimeout(2_000) { runtime.state.first { it.widgets.single().latestResult != null } }.widgets.single()
+        assertEquals("/first", first.latestResult!!.stdout)
+        runtime.reconcile(listOf(initial.copy(workingDirectory = "/second")))
+        withTimeout(2_000) { started.await() }
+        val changed = runtime.state.value.widgets.single()
+        assertTrue(changed.revision > first.revision)
+        assertNull(changed.latestResult)
+        assertNull(changed.lastSuccessfulResult)
+        release.complete(Unit)
+        val second = withTimeout(2_000) { runtime.state.first { it.widgets.single().latestResult != null } }
+        assertEquals("/second", second.widgets.single().latestResult!!.stdout)
+        runtime.close()
+    }
+
     @Test(timeout = 8_000) fun `slow attempts do not overlap and intervals begin after completion`() = runBlocking {
         val starts = Channel<Long>(Channel.UNLIMITED)
         val release = CompletableDeferred<Unit>()

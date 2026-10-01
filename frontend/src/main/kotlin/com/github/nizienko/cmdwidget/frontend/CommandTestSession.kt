@@ -20,18 +20,18 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 internal interface CommandTestBackend {
-    suspend fun context(): ExecutionContext
-    suspend fun test(command: String): CommandResult
+    suspend fun context(workingDirectory: String = ""): ExecutionContext
+    suspend fun test(command: String, workingDirectory: String = ""): CommandResult
 }
 
 @Service(Service.Level.PROJECT)
 internal class CommandTestService(private val project: Project, private val scope: CoroutineScope) {
     fun session(): CommandTestSession = CommandTestSession(scope, object : CommandTestBackend {
-        override suspend fun context() = CmdWidgetRpcApi.getInstance().executionContext(project.projectId())
-        override suspend fun test(command: String) = CmdWidgetRpcApi.getInstance().testCommand(project.projectId(), command)
+        override suspend fun context(workingDirectory: String) = CmdWidgetRpcApi.getInstance().executionContext(project.projectId(), workingDirectory)
+        override suspend fun test(command: String, workingDirectory: String) = CmdWidgetRpcApi.getInstance().testCommand(project.projectId(), command, workingDirectory)
     }, frontend = object : CommandTestBackend {
-        override suspend fun context() = project.service<FrontendWidgetService>().executionContext()
-        override suspend fun test(command: String) = service<CommandExecutor>().execute(command, context())
+        override suspend fun context(workingDirectory: String) = project.service<FrontendWidgetService>().executionContext(workingDirectory)
+        override suspend fun test(command: String, workingDirectory: String) = service<CommandExecutor>().execute(command, context(workingDirectory))
     })
 
     companion object {
@@ -60,10 +60,10 @@ internal class CommandTestSession(
         }
     }
 
-    fun loadContext(target: ExecutionTarget = ExecutionTarget.BACKEND, accept: (ExecutionContext?, String?) -> Unit) {
+    fun loadContext(target: ExecutionTarget = ExecutionTarget.BACKEND, workingDirectory: String = "", accept: (ExecutionContext?, String?) -> Unit) {
         scope.launch {
             try {
-                val context = runner(target).context()
+                val context = runner(target).context(workingDirectory)
                 deliver { accept(context, null) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -73,12 +73,12 @@ internal class CommandTestSession(
         }
     }
 
-    fun test(command: String, target: ExecutionTarget = ExecutionTarget.BACKEND, accept: (CommandResult?, String?) -> Unit) {
+    fun test(command: String, target: ExecutionTarget = ExecutionTarget.BACKEND, workingDirectory: String = "", accept: (CommandResult?, String?) -> Unit) {
         check(attempt?.isActive != true) { "A command test is already running" }
         val token = ++generation
         attempt = scope.launch {
             try {
-                val result = runner(target).test(command)
+                val result = runner(target).test(command, workingDirectory)
                 deliver { if (generation == token) accept(result, null) }
             } catch (cancelled: CancellationException) {
                 throw cancelled

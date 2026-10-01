@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 class CmdWidgetProjectService(private val project: Project, private val scope: CoroutineScope) {
     private val runtime = ProjectWidgetRuntime(
         scope,
-        { ExecutionContextResolver.resolve(project) },
+        { directory -> ExecutionContextResolver.resolve(project, directory) },
         { command, context -> service<CommandExecutor>().execute(command, context) },
     )
     val state = runtime.state
@@ -35,10 +35,10 @@ class CmdWidgetProjectService(private val project: Project, private val scope: C
         }
     }
 
-    suspend fun testCommand(command: String): CommandResult {
+    suspend fun testCommand(command: String, workingDirectory: String = ""): CommandResult {
         // Owned by the RPC caller/editor and project lifecycle, in addition to the executor's scope.
         val request = scope.async(Dispatchers.IO) {
-            service<CommandExecutor>().execute(command, ExecutionContextResolver.resolve(project))
+            service<CommandExecutor>().execute(command, ExecutionContextResolver.resolve(project, workingDirectory))
         }
         try { return request.await() }
         finally { withContext(NonCancellable) { request.cancelAndJoin() } }

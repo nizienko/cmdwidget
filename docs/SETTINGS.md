@@ -2,7 +2,12 @@
 
 Settings / Preferences → Tools → Cmd Widget is an application configurable in
 the frontend module. Definitions are global. Add/Edit opens a modal editor with
-Name, Command, a positive whole-second refresh interval, and Enabled. Stable IDs
+Name, Command, a positive whole-second refresh interval, Enabled, execution target,
+and an optional Working directory. Empty uses the default directory; relative
+paths resolve from the selected host's project root, and absolute paths refer to
+that host. Explicit unavailable paths disable testing and report errors during
+live refresh without falling back. Paths are literal and need no shell quoting.
+Stable IDs
 are retained on edit; Add assigns a UUID. Remove, Enable / Disable, and Move up /
 Move down operate on the settings draft. Editor OK only updates that draft;
 Settings Apply / OK commits the full validated list atomically. Editor Cancel
@@ -17,7 +22,9 @@ context lookup failure, or invalid backend root disables testing. Close and
 reopen the editor to retry a failed context lookup.
 
 Only Test command invokes the backend test RPC, capturing the command text at
-click time. Typing, selection, context lookup, and editor OK never test a command.
+click time, together with the unsaved working directory. Editing the directory
+reloads the context and cancels any active test. Typing, selection, context lookup,
+and editor OK never test a command.
 Testing neither persists the draft nor publishes live widget state. Output is
 plain text with separate stdout/stderr, exit code, duration, timeout/errors, and
 per-stream truncation flags. The backend executor supplies the same four shared
@@ -47,7 +54,7 @@ output. Session tests cover context-only requests, explicit commands, editor and
 project cancellation, and rejection of queued responses after cancellation.
 Backend RPC tests separately verify that testing does not publish live state.
 
-All 48 tests (27 backend and 21 frontend), plugin assembly, searchable-options
+All 58 tests (31 backend and 27 frontend), plugin assembly, searchable-options
 generation, and configuration/structure checks pass on macOS on 2026-10-01.
 Closing the project while its editor remains open disables testing and clears
 the running state. [Stage 7 verification](VERIFICATION.md) records the separate
@@ -78,6 +85,11 @@ and split mode (`./gradlew runIdeSplitMode`).
 7. In a split session confirm the displayed host/directory/shell belong to the
    backend. Reconnect and confirm saved definitions and results are restored with
    no duplicate schedulers. Repeat with saved frontend settings after restart.
+8. Test `pwd` with an empty directory, a relative subdirectory containing spaces,
+   and an absolute directory on each host. Confirm the preview and output agree.
+   Change the unsaved directory and test without Apply; live results must stay
+   unchanged. Apply the new directory and confirm previous results clear. A
+   nonexistent explicit directory must report an error without using the default.
 
 Visual acceptance remains pending: computer control returned
 `Computer Use permissions are not granted` on 2026-10-01. Automated checks and

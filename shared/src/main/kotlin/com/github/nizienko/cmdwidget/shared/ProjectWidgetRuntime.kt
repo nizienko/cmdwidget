@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
 /** One owner per project; reconnecting consumers only observe [state]. */
 class ProjectWidgetRuntime(
     parentScope: CoroutineScope,
-    private val context: () -> ExecutionContext,
+    private val context: (String) -> ExecutionContext,
     private val execute: suspend (String, ExecutionContext) -> CommandResult,
 ) {
     private val lifetime = SupervisorJob(parentScope.coroutineContext[Job])
@@ -47,12 +47,14 @@ class ProjectWidgetRuntime(
                 val before = old?.state?.configuration
                 val restart = before == null || before.command != definition.command ||
                     before.refreshIntervalSeconds != definition.refreshIntervalSeconds ||
-                    before.enabled != definition.enabled || before.executionTarget != definition.executionTarget
+                    before.enabled != definition.enabled || before.executionTarget != definition.executionTarget ||
+                    before.workingDirectory != definition.workingDirectory
                 val entry = if (!restart) {
                     old.apply { state = state.copy(configuration = definition) }
                 } else {
                     old?.job?.let(retiring::add)
-                    val keepResult = before?.command == definition.command && before.executionTarget == definition.executionTarget
+                    val keepResult = before?.command == definition.command && before.executionTarget == definition.executionTarget &&
+                        before.workingDirectory == definition.workingDirectory
                     Entry(WidgetState(
                         configuration = definition,
                         revision = ++revision,
@@ -87,7 +89,7 @@ class ProjectWidgetRuntime(
                 publish()
                 entry.state.configuration
             }
-            val result = execute(definition.command, context())
+            val result = execute(definition.command, context(definition.workingDirectory))
             synchronized(monitor) {
                 if (entries[definition.id] !== entry) return
                 entry.state = entry.state.copy(

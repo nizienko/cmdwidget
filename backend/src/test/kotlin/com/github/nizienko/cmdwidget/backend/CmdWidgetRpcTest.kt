@@ -32,6 +32,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
     fun testBackendExecutesOnlyBackendDefinitionsAndStopsAfterTargetChange() {
         // Light fixtures reuse a project whose previous test's directory may have been deleted.
         val root = java.nio.file.Files.createTempDirectory("cmdwidget-target-project")
+        val directory = java.nio.file.Files.createDirectory(root.resolve("nested directory"))
         val testProject = ProjectManagerEx.getInstanceEx().newProject(root, OpenProjectTask {
             isNewProject = true
             useDefaultProjectAsTemplate = false
@@ -40,7 +41,8 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
             runBlocking(Dispatchers.IO) {
                 withTimeout(5_000) {
                     val settings = service<CmdWidgetSettingsService>()
-                    val backend = CmdWidgetConfiguration("backend", "Backend", "printf backend", 60)
+                    val backend = CmdWidgetConfiguration("backend", "Backend", "pwd", 60,
+                        workingDirectory = "nested directory")
                     val frontend = CmdWidgetConfiguration("frontend", "Frontend", "printf frontend", 60,
                         executionTarget = ExecutionTarget.FRONTEND)
                     settings.replaceDefinitions(listOf(frontend, backend))
@@ -50,7 +52,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
                     }
                     assertEquals(listOf("backend"), snapshot.widgets.map { it.configuration.id })
                     assertTrue(snapshot.widgets.single().latestResult.toString(), snapshot.widgets.single().latestResult!!.successful)
-                    assertEquals("backend", snapshot.widgets.single().latestResult!!.stdout)
+                    assertEquals(directory.toFile().canonicalPath + "\n", snapshot.widgets.single().latestResult!!.stdout)
                     settings.replaceDefinitions(listOf(frontend, backend.copy(executionTarget = ExecutionTarget.FRONTEND)))
                     runtime.state.first { it.widgets.isEmpty() }
                 }
@@ -125,6 +127,14 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
             val tested = api.testCommand(id, "printf explicit-test")
             assertTrue(tested.toString(), tested.successful)
             assertEquals("explicit-test", tested.stdout)
+            val customRoot = java.nio.file.Files.createTempDirectory("cmdwidget-rpc-directory")
+            try {
+                val custom = api.executionContext(id, customRoot.toString())
+                assertNull(custom.error)
+                val customTest = api.testCommand(id, "pwd", customRoot.toString())
+                assertTrue(customTest.toString(), customTest.successful)
+                assertEquals(customRoot.toFile().canonicalPath + "\n", customTest.stdout)
+            } finally { com.intellij.openapi.util.io.FileUtil.delete(customRoot.toFile()) }
             assertEquals(initial, api.observe(id).first())
 
             settings.replaceDefinitions(listOf(CmdWidgetConfiguration("rpc", "RPC", "printf live", 60)))

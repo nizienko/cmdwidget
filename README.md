@@ -24,9 +24,9 @@ development, install the plugin on both frontend and backend.
 
 Open Settings / Preferences → Tools → Cmd Widget. Click Add, enter Name, Command,
 a positive whole-second Refresh interval, Enabled, and Run command on (BACKEND or
-FRONTEND). Choose the open project for command tests on the settings page. The editor displays the selected host,
-root directory, and shell. Test command explicitly executes the current unsaved
-command and shows stdout, stderr, exit code, duration, errors, and truncation.
+FRONTEND), and an optional Working directory. Choose the open project for command tests on the settings page. The editor displays the selected host,
+resolved directory, and shell. Test command explicitly executes the current unsaved
+command in the unsaved directory and shows stdout, stderr, exit code, duration, errors, and truncation.
 Typing and selecting entries never run a test.
 
 Click editor OK to update the settings draft, then Settings Apply / OK to save
@@ -48,11 +48,17 @@ Global definitions, stable IDs, order, and enabled flags are saved in the IDE's
 
 ## Execution and refresh
 
-Backend commands execute in the backend project's root directory. Without an open
-project and a usable root, backend execution is unavailable. Frontend commands use
+With an empty Working directory, backend commands execute in the backend project's
+root directory. Frontend commands use
 a usable local project root, falling back to the local user's home directory
 when the project root is unavailable locally (for example in remote development).
-The editor displays the actual directory before testing.
+Relative paths resolve against the project root on the selected host; absolute
+paths refer to that host's filesystem and do not require a usable project root.
+Explicit paths must exist and be readable and searchable directories. An invalid
+explicit path reports an error without falling back to another directory.
+Paths are literal: shell variables and `~` are not expanded. Spaces need no quotes.
+The editor displays the actual directory before testing. Changing the saved
+directory restarts the widget and clears results from its previous directory.
 Disk space, CLI configuration, environment, and permissions belong
 to the selected host. Two projects can therefore show different Git branches for
 one global definition.
@@ -114,7 +120,7 @@ The settings icon in the balloon opens Cmd Widget settings.
   detaching children are outside the verified pipeline-cleanup scenarios.
 
 Only text presentation is available. Windows execution, project-specific
-definitions, custom directory/environment, presets, import/export, manual
+definitions, custom environment, presets, import/export, manual
 refresh, and cross-project deduplication are deferred. System commands execute
 once per project.
 

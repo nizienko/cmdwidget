@@ -43,11 +43,11 @@ class CommandExecutor(private val serviceScope: CoroutineScope) {
     private suspend fun runProcess(command: String, context: ExecutionContext): CommandResult {
         val contextError = context.error ?: when {
             command.isBlank() -> "Command must not be blank"
-            context.workingDirectory == null -> "No usable project root directory"
+            context.workingDirectory == null -> "No usable working directory"
             !runCatching {
                 val root = Path.of(context.workingDirectory)
                 root.isAbsolute && Files.isDirectory(root) && Files.isReadable(root) && Files.isExecutable(root)
-            }.getOrDefault(false) -> "No usable project root directory"
+            }.getOrDefault(false) -> "Working directory is unavailable: ${context.workingDirectory}"
             else -> null
         }
         if (contextError != null) return CommandResult(

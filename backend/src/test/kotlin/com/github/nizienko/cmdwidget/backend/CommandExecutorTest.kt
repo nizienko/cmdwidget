@@ -53,6 +53,28 @@ class CommandExecutorTest {
         assertTrue(result.completedAtEpochMillis <= System.currentTimeMillis())
     }
 
+    @Test(timeout = 15_000) fun `custom directories resolve on host and invalid paths never execute`() = runBlocking {
+        val nested = temporary.newFolder("directory with spaces")
+        for (directory in listOf(nested.name, nested.absolutePath)) {
+            val resolved = ExecutionContextResolver.resolve(temporary.root.absolutePath,
+                mapOf("SHELL" to "/bin/sh"), workingDirectory = directory)
+            val result = executor.execute("pwd", resolved)
+            assertTrue(result.toString(), result.successful)
+            assertEquals(nested.canonicalPath + "\n", result.stdout)
+        }
+        assertNull(ExecutionContextResolver.resolve(null, workingDirectory = nested.absolutePath).error)
+        assertNotNull(ExecutionContextResolver.resolve(null, workingDirectory = nested.name).error)
+        val marker = temporary.root.resolve("must-not-run")
+        for (directory in listOf("missing", "invalid\u0000path", marker.absolutePath)) {
+            val resolved = ExecutionContextResolver.resolve(temporary.root.absolutePath, workingDirectory = directory)
+            assertNotNull(resolved.error)
+            assertNotNull(executor.execute("touch '${marker.path}'", resolved).contextError)
+            assertFalse(marker.exists())
+        }
+        assertEquals(context.workingDirectory,
+            ExecutionContextResolver.resolve(temporary.root.absolutePath, workingDirectory = " ").workingDirectory)
+    }
+
     @Test(timeout = 15_000) fun `nonzero exit and stderr are reported without losing stdout`() = runBlocking {
         val result = executor.execute("printf value; printf diagnostic >&2; exit 7", context)
         assertEquals(7, result.exitCode)

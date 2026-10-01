@@ -17,6 +17,7 @@ data class CmdWidgetConfiguration(
     val presentation: PresentationType = PresentationType.TEXT,
     val enabled: Boolean = true,
     val executionTarget: ExecutionTarget = ExecutionTarget.BACKEND,
+    val workingDirectory: String = "",
 ) {
     fun validationError(): String? = when {
         id.isBlank() -> "Widget ID must not be blank"
