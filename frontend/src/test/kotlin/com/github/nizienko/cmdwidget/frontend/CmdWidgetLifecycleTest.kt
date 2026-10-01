@@ -8,6 +8,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
 import com.github.nizienko.cmdwidget.shared.CommandResult
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.github.nizienko.cmdwidget.shared.ProjectWidgetState
 import com.github.nizienko.cmdwidget.shared.WidgetState
 import kotlinx.coroutines.CompletableDeferred
@@ -195,6 +196,24 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         Disposer.dispose(host)
         host.accept(BackendStateEvent.Snapshot(2, state(3, "after disposal")))
         assertNull(bar.getWidget(widget.ID()))
+    }
+
+    fun testBackendDisconnectMarksOnlyBackendWidgetsStaleAndLocalUpdatesContinue() {
+        val bar = bar()
+        val host = install(bar)
+        val backend = state(1, "remote").widgets.single()
+        val local = backend.copy(configuration = backend.configuration.copy(
+            id = "local", name = "Local", executionTarget = ExecutionTarget.FRONTEND,
+        ))
+        host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(1, listOf(backend, local)), connected = false))
+        fun text(id: String) = (bar.getWidget("CmdWidget.$id")!!.getPresentation() as StatusBarWidget.TextPresentation).getText()
+        assertEquals("Live: remote [stale]", text("live"))
+        assertEquals("Local: remote", text("local"))
+        val nextResult = local.latestResult!!.copy(stdout = "updated")
+        host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(2, listOf(backend,
+            local.copy(latestResult = nextResult, lastSuccessfulResult = nextResult))), connected = false))
+        assertEquals("Local: updated", text("local"))
+        assertEquals("Live: remote [stale]", text("live"))
     }
 
     fun testDisposalCancelsSubscriptionAndQueuedDeliveryCannotRecreateWidgets() {

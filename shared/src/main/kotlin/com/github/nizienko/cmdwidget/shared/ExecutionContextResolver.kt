@@ -1,6 +1,5 @@
-package com.github.nizienko.cmdwidget.backend
+package com.github.nizienko.cmdwidget.shared
 
-import com.github.nizienko.cmdwidget.shared.ExecutionContext
 import com.intellij.openapi.project.Project
 import java.net.InetAddress
 import java.nio.file.Files
@@ -8,7 +7,7 @@ import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.util.Locale
 
-internal object ExecutionContextResolver {
+object ExecutionContextResolver {
     fun resolve(project: Project): ExecutionContext = resolve(
         if (project.isDefault || project.isDisposed) null else project.basePath,
     )
@@ -25,7 +24,7 @@ internal object ExecutionContextResolver {
         val directory = root?.let(::path)
         val os = operatingSystem.lowercase(Locale.ROOT)
         val error = when {
-            !os.contains("mac") && !os.contains("linux") -> "Execution is supported only on macOS and Linux backend hosts"
+            !os.contains("mac") && !os.contains("linux") -> "Execution is supported only on macOS and Linux hosts"
             directory == null || !directory.isAbsolute || !Files.isDirectory(directory) ||
                 !Files.isReadable(directory) || !Files.isExecutable(directory) -> "No usable project root directory"
             else -> null

@@ -68,7 +68,7 @@ internal class CmdWidgetSettingsPanel : JPanel(BorderLayout(0, 8)) {
             override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, selected: Boolean, focus: Boolean): Component {
                 val definition = value as? CmdWidgetConfiguration
                 return super.getListCellRendererComponent(list, definition?.let {
-                    "${if (it.enabled) "Enabled" else "Disabled"}  |  ${it.name}  |  ${it.refreshIntervalSeconds} s"
+                    "${if (it.enabled) "Enabled" else "Disabled"}  |  ${it.name}  |  ${it.executionTarget}  |  ${it.refreshIntervalSeconds} s"
                 }, index, selected, focus).apply { (this as javax.swing.JLabel).putClientProperty("html.disable", true) }
             }
         }

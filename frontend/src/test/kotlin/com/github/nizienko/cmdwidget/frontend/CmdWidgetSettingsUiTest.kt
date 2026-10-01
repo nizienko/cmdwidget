@@ -4,6 +4,7 @@ import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
 import com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService
 import com.github.nizienko.cmdwidget.shared.CommandResult
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.Container
@@ -80,8 +81,10 @@ class CmdWidgetSettingsUiTest : BasePlatformTestCase() {
             assertNotNull(editor.validation())
             editor.command.text = "printf unsaved"
             editor.enabledBox.isSelected = false
+            editor.executionTarget.selectedItem = ExecutionTarget.FRONTEND
             assertNull(editor.validation())
-            assertEquals(first.copy(name = "Renamed", command = "printf unsaved", refreshIntervalSeconds = 5, enabled = false), editor.configuration())
+            assertEquals(first.copy(name = "Renamed", command = "printf unsaved", refreshIntervalSeconds = 5,
+                enabled = false, executionTarget = ExecutionTarget.FRONTEND), editor.configuration())
             assertEquals("pwd", first.command)
         } finally { editor.dispose() }
     }

@@ -2,6 +2,7 @@ package com.github.nizienko.cmdwidget.frontend
 
 import com.github.nizienko.cmdwidget.shared.CommandResult
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,35 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 class CommandTestSessionTest {
     private val context = ExecutionContext("backend", "/repo", "/bin/sh", "Linux")
+
+    @Test fun frontendContextAndTestUseLocalRunnerWithoutContactingBackend() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val local = context.copy(host = "frontend", workingDirectory = "/local")
+        val backend = object : CommandTestBackend {
+            override suspend fun context(): ExecutionContext = error("Backend must not be contacted")
+            override suspend fun test(command: String): CommandResult = error("Backend must not be contacted")
+        }
+        val frontend = object : CommandTestBackend {
+            override suspend fun context() = local
+            override suspend fun test(command: String) =
+                CommandResult(local, stdout = command, exitCode = 0, completedAtEpochMillis = 1)
+        }
+        val session = CommandTestSession(scope, backend, frontend) { it() }
+        try {
+            val received = CompletableDeferred<ExecutionContext>()
+            session.loadContext(ExecutionTarget.FRONTEND) { value, error ->
+                assertNull(error)
+                received.complete(value!!)
+            }
+            assertEquals(local, withTimeout(5_000) { received.await() })
+            val result = CompletableDeferred<CommandResult>()
+            session.test("local command", ExecutionTarget.FRONTEND) { value, error ->
+                assertNull(error)
+                result.complete(value!!)
+            }
+            assertEquals("local command", withTimeout(5_000) { result.await() }.stdout)
+        } finally { session.dispose(); scope.cancel() }
+    }
 
     @Test fun contextLookupNeverExecutesAndTestRunsOnlyTheExplicitUnsavedCommand() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

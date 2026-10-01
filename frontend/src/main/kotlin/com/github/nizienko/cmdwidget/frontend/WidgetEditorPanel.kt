@@ -2,6 +2,7 @@ package com.github.nizienko.cmdwidget.frontend
 
 import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
 import com.github.nizienko.cmdwidget.shared.CommandResult
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.DocumentAdapter
@@ -15,6 +16,7 @@ import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import javax.swing.JButton
+import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
@@ -27,12 +29,16 @@ internal class WidgetEditorPanel(
     internal val command = JBTextArea(original.command, 3, 45)
     internal val interval = JBTextField(original.refreshIntervalSeconds.toString(), 10)
     internal val enabledBox = JBCheckBox("Enabled", original.enabled)
+    internal val executionTarget = JComboBox(ExecutionTarget.entries.toTypedArray()).apply {
+        selectedItem = original.executionTarget
+    }
     internal val testButton = JButton("Test command")
     internal val cancelButton = JButton("Cancel test")
     internal val output = JBTextArea(9, 45).apply { isEditable = false }
     private val context = JBTextArea(4, 45).apply { isEditable = false; lineWrap = true; wrapStyleWord = true }
     private var usableContext = false
     private var running = false
+    private var contextGeneration = 0L
 
     init {
         val fields = JPanel(GridBagLayout())
@@ -50,10 +56,12 @@ internal class WidgetEditorPanel(
         row(1, "Command", JBScrollPane(command))
         row(2, "Refresh interval (seconds)", interval)
         row(3, "", enabledBox)
-        row(4, "Backend context", JBScrollPane(context))
+        row(4, "Run command on", executionTarget)
+        row(5, "Execution context", JBScrollPane(context))
         val policy = JBTextArea(
-            "Runs on the selected project's backend host with the backend user's permissions. " +
-                "Commands may have side effects. Inherits the backend environment; the non-interactive login shell " +
+            "Runs on the selected host with that user's permissions. Frontend uses a local project root " +
+                "or the local user's home directory when no local root is available. " +
+                "Commands may have side effects. Inherits the selected host's environment; the non-interactive login shell " +
                 "(-lc) may modify it. This can differ from the IDE terminal. " +
                 "Timeout: 10 seconds. Output capture: 64 KiB per stream. Test does not save settings.",
         ).apply { isEditable = false; lineWrap = true; wrapStyleWord = true; isOpaque = false }
@@ -68,7 +76,13 @@ internal class WidgetEditorPanel(
         add(fields, BorderLayout.NORTH)
         add(bottom, BorderLayout.CENTER)
         preferredSize = Dimension(650, 530)
-        context.text = if (session == null) "No open project. Command testing is unavailable." else "Loading backend context…"
+        context.text = if (session == null) "No open project. Command testing is unavailable." else "Loading execution context…"
+        executionTarget.addActionListener {
+            session?.cancelTest()
+            running = false
+            output.text = ""
+            loadContext()
+        }
         command.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = updateButtons()
         })
@@ -78,7 +92,7 @@ internal class WidgetEditorPanel(
             val testedCommand = command.text
             output.text = "Testing command:\n$testedCommand\n\nRunning…"
             updateButtons()
-            session!!.test(testedCommand) { result, error ->
+            session!!.test(testedCommand, selectedTarget()) { result, error ->
                 running = false
                 output.text = "Tested command:\n$testedCommand\n\n" + (result?.let(::formatTestResult) ?: error)
                 output.caretPosition = 0
@@ -89,7 +103,7 @@ internal class WidgetEditorPanel(
         cancelButton.addActionListener {
             session?.cancelTest()
             running = false
-            output.text = "Test cancelled. Process cleanup may still be completing on the backend."
+            output.text = "Test cancelled. Process cleanup may still be completing on the selected host."
             updateButtons()
         }
         updateButtons()
@@ -100,7 +114,19 @@ internal class WidgetEditorPanel(
             output.text = "Command test session closed."
             updateButtons()
         }
-        session?.loadContext { value, error ->
+        loadContext()
+    }
+
+    private fun selectedTarget() = executionTarget.selectedItem as ExecutionTarget
+
+    private fun loadContext() {
+        val token = ++contextGeneration
+        usableContext = false
+        updateButtons()
+        if (session == null) return
+        context.text = "Loading execution context…"
+        session.loadContext(selectedTarget()) { value, error ->
+            if (token != contextGeneration) return@loadContext
             if (value != null) showContext(value)
             else { usableContext = false; context.text = error }
             updateButtons()
@@ -131,7 +157,8 @@ internal class WidgetEditorPanel(
     fun configuration(): CmdWidgetConfiguration {
         check(validation() == null)
         return original.copy(name = name.text, command = command.text,
-            refreshIntervalSeconds = interval.text.toInt(), enabled = enabledBox.isSelected)
+            refreshIntervalSeconds = interval.text.toInt(), enabled = enabledBox.isSelected,
+            executionTarget = selectedTarget())
     }
 
     override fun dispose() { session?.dispose() }

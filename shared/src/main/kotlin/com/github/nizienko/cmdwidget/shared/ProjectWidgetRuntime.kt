@@ -1,10 +1,5 @@
-package com.github.nizienko.cmdwidget.backend
+package com.github.nizienko.cmdwidget.shared
 
-import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
-import com.github.nizienko.cmdwidget.shared.CommandResult
-import com.github.nizienko.cmdwidget.shared.ExecutionContext
-import com.github.nizienko.cmdwidget.shared.ProjectWidgetState
-import com.github.nizienko.cmdwidget.shared.WidgetState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** One owner per project; reconnecting consumers only observe [state]. */
-internal class ProjectWidgetRuntime(
+class ProjectWidgetRuntime(
     parentScope: CoroutineScope,
     private val context: () -> ExecutionContext,
     private val execute: suspend (String, ExecutionContext) -> CommandResult,
@@ -52,12 +47,12 @@ internal class ProjectWidgetRuntime(
                 val before = old?.state?.configuration
                 val restart = before == null || before.command != definition.command ||
                     before.refreshIntervalSeconds != definition.refreshIntervalSeconds ||
-                    before.enabled != definition.enabled
+                    before.enabled != definition.enabled || before.executionTarget != definition.executionTarget
                 val entry = if (!restart) {
                     old.apply { state = state.copy(configuration = definition) }
                 } else {
                     old?.job?.let(retiring::add)
-                    val keepResult = before?.command == definition.command
+                    val keepResult = before?.command == definition.command && before.executionTarget == definition.executionTarget
                     Entry(WidgetState(
                         configuration = definition,
                         revision = ++revision,

@@ -1,6 +1,7 @@
 package com.github.nizienko.cmdwidget.backend
 
 import com.github.nizienko.cmdwidget.shared.CmdWidgetRpcApi
+import com.github.nizienko.cmdwidget.shared.ExecutionContextResolver
 import com.intellij.openapi.components.service
 import com.intellij.platform.project.ProjectId
 import com.intellij.platform.project.findProjectOrNull

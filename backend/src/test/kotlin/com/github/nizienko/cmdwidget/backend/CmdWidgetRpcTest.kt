@@ -2,6 +2,7 @@ package com.github.nizienko.cmdwidget.backend
 
 import com.github.nizienko.cmdwidget.shared.CmdWidgetRpcApi
 import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService
 import com.intellij.openapi.components.service
 import com.intellij.ide.impl.OpenProjectTask
@@ -26,6 +27,38 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
     override fun tearDown() {
         try { service<CmdWidgetSettingsService>().replaceDefinitions(emptyList()) }
         finally { super.tearDown() }
+    }
+
+    fun testBackendExecutesOnlyBackendDefinitionsAndStopsAfterTargetChange() {
+        // Light fixtures reuse a project whose previous test's directory may have been deleted.
+        val root = java.nio.file.Files.createTempDirectory("cmdwidget-target-project")
+        val testProject = ProjectManagerEx.getInstanceEx().newProject(root, OpenProjectTask {
+            isNewProject = true
+            useDefaultProjectAsTemplate = false
+        })!!
+        try {
+            runBlocking(Dispatchers.IO) {
+                withTimeout(5_000) {
+                    val settings = service<CmdWidgetSettingsService>()
+                    val backend = CmdWidgetConfiguration("backend", "Backend", "printf backend", 60)
+                    val frontend = CmdWidgetConfiguration("frontend", "Frontend", "printf frontend", 60,
+                        executionTarget = ExecutionTarget.FRONTEND)
+                    settings.replaceDefinitions(listOf(frontend, backend))
+                    val runtime = testProject.service<CmdWidgetProjectService>()
+                    val snapshot = runtime.state.first {
+                        it.widgets.singleOrNull()?.let { widget -> widget.configuration == backend && widget.latestResult != null } == true
+                    }
+                    assertEquals(listOf("backend"), snapshot.widgets.map { it.configuration.id })
+                    assertTrue(snapshot.widgets.single().latestResult.toString(), snapshot.widgets.single().latestResult!!.successful)
+                    assertEquals("backend", snapshot.widgets.single().latestResult!!.stdout)
+                    settings.replaceDefinitions(listOf(frontend, backend.copy(executionTarget = ExecutionTarget.FRONTEND)))
+                    runtime.state.first { it.widgets.isEmpty() }
+                }
+            }
+        } finally {
+            WriteAction.run<RuntimeException> { Disposer.dispose(testProject) }
+            com.intellij.openapi.util.io.FileUtil.delete(root.toFile())
+        }
     }
 
     fun testSavedDefinitionsReachNewProjectsAndApplyKeepsIndependentResults() {

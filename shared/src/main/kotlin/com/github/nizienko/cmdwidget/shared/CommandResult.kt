@@ -2,7 +2,7 @@ package com.github.nizienko.cmdwidget.shared
 
 import kotlinx.serialization.Serializable
 
-/** Backend-host context, never a frontend filesystem path. */
+/** Context on the host actually executing the command. */
 @Serializable
 data class ExecutionContext(
     val host: String,

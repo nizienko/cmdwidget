@@ -1,7 +1,5 @@
-package com.github.nizienko.cmdwidget.backend
+package com.github.nizienko.cmdwidget.shared
 
-import com.github.nizienko.cmdwidget.shared.CommandResult
-import com.github.nizienko.cmdwidget.shared.ExecutionContext
 import com.intellij.openapi.components.Service
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +22,7 @@ import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
-/** One application service, hence one four-execution budget per backend process. */
+/** One application service, hence one four-execution budget per IDE process. */
 @Service(Service.Level.APP)
 class CommandExecutor(private val serviceScope: CoroutineScope) {
     private val slots = Semaphore(MAX_ACTIVE)

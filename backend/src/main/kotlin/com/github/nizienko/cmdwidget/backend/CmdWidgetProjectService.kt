@@ -1,6 +1,10 @@
 package com.github.nizienko.cmdwidget.backend
 
 import com.github.nizienko.cmdwidget.shared.CommandResult
+import com.github.nizienko.cmdwidget.shared.CommandExecutor
+import com.github.nizienko.cmdwidget.shared.ExecutionContextResolver
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
+import com.github.nizienko.cmdwidget.shared.ProjectWidgetRuntime
 import com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -25,7 +29,9 @@ class CmdWidgetProjectService(private val project: Project, private val scope: C
 
     init {
         scope.launch(Dispatchers.IO) {
-            service<CmdWidgetSettingsService>().effectiveDefinitions.collect { runtime.reconcile(it) }
+            service<CmdWidgetSettingsService>().effectiveDefinitions.collect { definitions ->
+                runtime.reconcile(definitions.filter { it.executionTarget == ExecutionTarget.BACKEND })
+            }
         }
     }
 

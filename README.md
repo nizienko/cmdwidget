@@ -2,11 +2,11 @@
 
 Cmd Widget displays the output of your shell commands as independent text widgets
 in the IntelliJ IDEA status bar. Definitions are global; each open project runs
-them in its own root directory and keeps its own results. In split mode commands
-run on the backend host.
+them and keeps its own results. Each widget can execute on the backend or frontend
+host, including in split mode. Existing definitions default to backend execution.
 
 This development build targets IntelliJ IDEA 2026.1.5. Command execution supports
-macOS and Linux backend hosts. Windows execution and compatibility with other IDE
+macOS and Linux hosts. Windows execution and compatibility with other IDE
 versions are not claimed. Manual end-to-end acceptance is still pending; see
 [PLAN.md](PLAN.md).
 
@@ -23,8 +23,8 @@ Preferences → Plugins → gear menu → Install Plugin from Disk. In remote
 development, install the plugin on both frontend and backend.
 
 Open Settings / Preferences → Tools → Cmd Widget. Click Add, enter Name, Command,
-a positive whole-second Refresh interval, and Enabled. Choose the open project
-for command tests on the settings page. The editor displays its backend host,
+a positive whole-second Refresh interval, Enabled, and Run command on (BACKEND or
+FRONTEND). Choose the open project for command tests on the settings page. The editor displays the selected host,
 root directory, and shell. Test command explicitly executes the current unsaved
 command and shows stdout, stderr, exit code, duration, errors, and truncation.
 Typing and selecting entries never run a test.
@@ -48,28 +48,31 @@ Global definitions, stable IDs, order, and enabled flags are saved in the IDE's
 
 ## Execution and refresh
 
-Commands execute in the backend project's root directory. Without an open project
-and a usable root, execution is unavailable; there is no fallback directory.
-In split mode, disk space, CLI configuration, environment, and permissions belong
-to the backend host. Two projects can therefore show different Git branches for
+Backend commands execute in the backend project's root directory. Without an open
+project and a usable root, backend execution is unavailable. Frontend commands use
+a usable local project root, falling back to the local user's home directory
+when the project root is unavailable locally (for example in remote development).
+The editor displays the actual directory before testing.
+Disk space, CLI configuration, environment, and permissions belong
+to the selected host. Two projects can therefore show different Git branches for
 one global definition.
 
-The backend uses an absolute executable `SHELL` from its environment, falling
+The selected host uses an absolute executable `SHELL` from its environment, falling
 back to `/bin/sh`, and launches a non-interactive login shell with `-lc`. It
-inherits the backend environment; shell startup files may alter it. This need not
+inherits that host's environment; shell startup files may alter it. This need not
 match an interactive IDE terminal. Use absolute executable paths or explicit
 environment assignments when needed. Stdin is closed. Commands run with the
-backend user's permissions and can have side effects.
+selected host user's permissions and can have side effects.
 
 Enabled widgets run immediately, then wait the configured interval after each
 attempt finishes. A three-second command with a ten-second interval starts about
 every thirteen seconds. Each widget has at most one queued/running attempt.
-Four executions can run per backend process, including tests; others queue.
+Four executions can run per IDE process, including tests; others queue.
 Each execution has a ten-second timeout including shell startup. Both streams
 are drained concurrently, capturing at most 64 KiB each with explicit truncation.
 Cancellation and timeout perform bounded descendant-process cleanup.
 
-Rename and ordering edits preserve execution state. Command/interval changes
+Rename and ordering edits preserve execution state. Command/interval/host changes
 cancel the old attempt before replacement; disabling/removing stops that widget.
 Project closure and plugin unload cancel owned work. Closing the editor or
 clicking Cancel test cancels its test. Tests do not save definitions or change
@@ -85,6 +88,7 @@ are failures.
 
 During refresh, the last successful value remains visible. Failure or disconnect
 marks a retained value as stale; failure before the first success shows an error.
+Frontend widgets keep updating when the backend disconnects.
 Tooltips include bounded diagnostics, host/directory/shell, exit/error, duration,
 completion time, and last successful update time.
 
@@ -113,9 +117,10 @@ once per project.
 
 ## Development and verification
 
-The plugin has three modules: `shared` (DTOs, persistent definitions, RPC
-contract), `backend` (execution, scheduling, RPC provider), and `frontend`
-(settings, explicit test adapter, status bar lifecycle/presentation).
+The plugin has three modules: `shared` (DTOs, persistent definitions, RPC contract,
+process execution, context resolution, scheduling), `backend` (backend runtime and
+RPC provider), and `frontend` (local runtime, settings, explicit test adapter,
+status bar lifecycle/presentation).
 
 ```sh
 ./gradlew :backend:test :frontend:test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure

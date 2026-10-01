@@ -1,5 +1,8 @@
 package com.github.nizienko.cmdwidget.backend
 
+import com.github.nizienko.cmdwidget.shared.CommandExecutor
+import com.github.nizienko.cmdwidget.shared.ExecutionContextResolver
+
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

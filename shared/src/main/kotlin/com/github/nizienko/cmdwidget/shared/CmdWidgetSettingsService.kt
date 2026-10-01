@@ -26,10 +26,12 @@ class CmdWidgetSettingsService : PersistentStateComponentWithModificationTracker
         var refreshIntervalSeconds: Int = 10
         var presentation: String = PresentationType.TEXT.name
         var enabled: Boolean = true
+        var executionTarget: String = ExecutionTarget.BACKEND.name
 
         fun configuration(): CmdWidgetConfiguration? {
             val type = PresentationType.entries.firstOrNull { it.name == presentation } ?: return null
-            return CmdWidgetConfiguration(id, name, command, refreshIntervalSeconds, type, enabled)
+            val target = ExecutionTarget.entries.firstOrNull { it.name == executionTarget } ?: return null
+            return CmdWidgetConfiguration(id, name, command, refreshIntervalSeconds, type, enabled, target)
                 .takeIf { it.validationError() == null }
         }
     }
@@ -48,6 +50,7 @@ class CmdWidgetSettingsService : PersistentStateComponentWithModificationTracker
                 refreshIntervalSeconds = configuration.refreshIntervalSeconds
                 presentation = configuration.presentation.name
                 enabled = configuration.enabled
+                executionTarget = configuration.executionTarget.name
             }
         }.toMutableList()
     }

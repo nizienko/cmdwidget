@@ -7,6 +7,7 @@ import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.diagnostic.logger
 import com.github.nizienko.cmdwidget.shared.ProjectWidgetState
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -76,7 +77,7 @@ internal class CmdWidgetHost(
                 if (event.state.version <= version) return
                 version = event.state.version
                 latestState = event.state
-                render(event.state, connected = true)
+                render(event.state, connected = event.connected)
                 if (reportedSession != session && event.state.widgets.any { it.latestResult != null }) {
                     reportedSession = session
                     logger<CmdWidgetHost>().info(
@@ -92,7 +93,9 @@ internal class CmdWidgetHost(
     }
 
     private fun render(state: ProjectWidgetState, connected: Boolean) {
-        reconcilePresentations(state.widgets.filter { it.configuration.enabled }.map { TextPresentation.format(it, connected) })
+        reconcilePresentations(state.widgets.filter { it.configuration.enabled }.map {
+            TextPresentation.format(it, connected || it.configuration.executionTarget == ExecutionTarget.FRONTEND)
+        })
     }
 
     private fun reconcilePresentations(definitions: List<WidgetPresentation>) {

@@ -3,6 +3,8 @@ package com.github.nizienko.cmdwidget.frontend
 import com.github.nizienko.cmdwidget.shared.CmdWidgetRpcApi
 import com.github.nizienko.cmdwidget.shared.CommandResult
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
+import com.github.nizienko.cmdwidget.shared.CommandExecutor
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
@@ -27,6 +29,9 @@ internal class CommandTestService(private val project: Project, private val scop
     fun session(): CommandTestSession = CommandTestSession(scope, object : CommandTestBackend {
         override suspend fun context() = CmdWidgetRpcApi.getInstance().executionContext(project.projectId())
         override suspend fun test(command: String) = CmdWidgetRpcApi.getInstance().testCommand(project.projectId(), command)
+    }, frontend = object : CommandTestBackend {
+        override suspend fun context() = project.service<FrontendWidgetService>().executionContext()
+        override suspend fun test(command: String) = service<CommandExecutor>().execute(command, context())
     })
 
     companion object {
@@ -38,6 +43,7 @@ internal class CommandTestService(private val project: Project, private val scop
 internal class CommandTestSession(
     parent: CoroutineScope,
     private val backend: CommandTestBackend,
+    private val frontend: CommandTestBackend = backend,
     private val dispatch: (() -> Unit) -> Unit = { action ->
         ApplicationManager.getApplication().invokeLater(action, ModalityState.any())
     },
@@ -54,10 +60,10 @@ internal class CommandTestSession(
         }
     }
 
-    fun loadContext(accept: (ExecutionContext?, String?) -> Unit) {
+    fun loadContext(target: ExecutionTarget = ExecutionTarget.BACKEND, accept: (ExecutionContext?, String?) -> Unit) {
         scope.launch {
             try {
-                val context = backend.context()
+                val context = runner(target).context()
                 deliver { accept(context, null) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -67,12 +73,12 @@ internal class CommandTestSession(
         }
     }
 
-    fun test(command: String, accept: (CommandResult?, String?) -> Unit) {
+    fun test(command: String, target: ExecutionTarget = ExecutionTarget.BACKEND, accept: (CommandResult?, String?) -> Unit) {
         check(attempt?.isActive != true) { "A command test is already running" }
         val token = ++generation
         attempt = scope.launch {
             try {
-                val result = backend.test(command)
+                val result = runner(target).test(command)
                 deliver { if (generation == token) accept(result, null) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -86,6 +92,8 @@ internal class CommandTestSession(
         generation++
         attempt?.cancel()
     }
+
+    private fun runner(target: ExecutionTarget) = if (target == ExecutionTarget.FRONTEND) frontend else backend
 
     private fun deliver(action: () -> Unit) = dispatch {
         if (!disposed && lifetime.isActive) action()

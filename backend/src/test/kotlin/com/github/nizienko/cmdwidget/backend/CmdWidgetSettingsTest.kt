@@ -1,6 +1,7 @@
 package com.github.nizienko.cmdwidget.backend
 
 import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.github.nizienko.cmdwidget.shared.CmdWidgetRemoteSettingInfoProvider
 import com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService
 import com.intellij.ide.settings.RemoteSettingInfo
@@ -14,7 +15,7 @@ class CmdWidgetSettingsTest {
 
     @Test fun `XML round trip preserves IDs order and disabled definitions without runtime state`() {
         val settings = CmdWidgetSettingsService()
-        val definitions = listOf(widget("second").copy(enabled = false), widget("first"))
+        val definitions = listOf(widget("second").copy(enabled = false, executionTarget = ExecutionTarget.FRONTEND), widget("first"))
         settings.replaceDefinitions(definitions)
         val xml = XmlSerializer.serialize(settings.state)
         val restored = CmdWidgetSettingsService()
@@ -38,6 +39,7 @@ class CmdWidgetSettingsTest {
         val definition = settings.effectiveDefinitions.value.single()
         assertTrue(definition.id.isNotBlank())
         assertEquals(10, definition.refreshIntervalSeconds)
+        assertEquals(ExecutionTarget.BACKEND, definition.executionTarget)
         assertTrue(definition.enabled)
         val restored = CmdWidgetSettingsService()
         restored.loadState(XmlSerializer.deserialize(XmlSerializer.serialize(settings.state), CmdWidgetSettingsService.SettingsState::class.java))
@@ -58,6 +60,7 @@ class CmdWidgetSettingsTest {
         add("long-name") { name = "x".repeat(41) }
         add("interval") { refreshIntervalSeconds = 0 }
         add("unknown-presentation") { presentation = "FUTURE" }
+        add("unknown-target") { executionTarget = "FUTURE" }
         add("")
         add("disabled") { enabled = false }
         val settings = CmdWidgetSettingsService()

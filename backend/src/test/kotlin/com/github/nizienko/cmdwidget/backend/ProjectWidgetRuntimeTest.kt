@@ -1,5 +1,10 @@
 package com.github.nizienko.cmdwidget.backend
 
+import com.github.nizienko.cmdwidget.shared.CommandExecutor
+import com.github.nizienko.cmdwidget.shared.ExecutionContextResolver
+import com.github.nizienko.cmdwidget.shared.ExecutionTarget
+import com.github.nizienko.cmdwidget.shared.ProjectWidgetRuntime
+
 import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
 import com.github.nizienko.cmdwidget.shared.CommandResult
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
@@ -37,6 +42,25 @@ class ProjectWidgetRuntimeTest {
     )
 
     @After fun tearDown() = runBlocking { owner.coroutineContext[Job]!!.cancelAndJoin() }
+
+    @Test(timeout = 8_000) fun `changing execution target cancels old work and clears previous host results`() = runBlocking {
+        val started = Channel<Unit>(Channel.UNLIMITED)
+        val stopped = CompletableDeferred<Unit>()
+        val runtime = ProjectWidgetRuntime(owner, { context }) { _, _ ->
+            started.send(Unit)
+            try { awaitCancellation() } finally { stopped.complete(Unit) }
+        }
+        val initial = definition()
+        runtime.reconcile(listOf(initial))
+        withTimeout(2_000) { started.receive() }
+        val revision = runtime.state.value.widgets.single().revision
+        runtime.reconcile(listOf(initial.copy(executionTarget = ExecutionTarget.FRONTEND)))
+        assertTrue(stopped.isCompleted)
+        assertTrue(runtime.state.value.widgets.single().revision > revision)
+        assertNull(runtime.state.value.widgets.single().latestResult)
+        withTimeout(2_000) { started.receive() }
+        runtime.close()
+    }
 
     @Test(timeout = 8_000) fun `slow attempts do not overlap and intervals begin after completion`() = runBlocking {
         val starts = Channel<Long>(Channel.UNLIMITED)

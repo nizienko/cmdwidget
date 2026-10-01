@@ -6,6 +6,9 @@ import kotlinx.serialization.Serializable
 enum class PresentationType { TEXT }
 
 @Serializable
+enum class ExecutionTarget { BACKEND, FRONTEND }
+
+@Serializable
 data class CmdWidgetConfiguration(
     val id: String,
     val name: String,
@@ -13,6 +16,7 @@ data class CmdWidgetConfiguration(
     val refreshIntervalSeconds: Int = 10,
     val presentation: PresentationType = PresentationType.TEXT,
     val enabled: Boolean = true,
+    val executionTarget: ExecutionTarget = ExecutionTarget.BACKEND,
 ) {
     fun validationError(): String? = when {
         id.isBlank() -> "Widget ID must not be blank"
@@ -24,7 +28,7 @@ data class CmdWidgetConfiguration(
     }
 }
 
-/** Raw backend state. Formatting and terminal-sequence removal belong to the frontend. */
+/** Raw execution state. Formatting and terminal-sequence removal belong to the frontend. */
 @Serializable
 data class WidgetState(
     val configuration: CmdWidgetConfiguration,

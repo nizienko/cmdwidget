@@ -1,6 +1,7 @@
 package com.github.nizienko.cmdwidget.frontend
 
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.components.service
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
@@ -13,5 +14,5 @@ class CmdWidgetFactory : StatusBarWidgetFactory {
     override fun isConfigurable(): Boolean = false
     override fun canBeEnabledOn(statusBar: StatusBar): Boolean = true
     override fun createWidget(project: Project, scope: CoroutineScope): StatusBarWidget =
-        CmdWidgetHost(scope, BackendStateConnection(project)::observe)
+        CmdWidgetHost(scope, project.service<FrontendWidgetService>()::observe)
 }
