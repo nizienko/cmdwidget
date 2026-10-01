@@ -1,4 +1,4 @@
-# Cmd Widget
+# Cmd Widgets
 
 Cmd Widget displays the output of your shell commands as independent text widgets
 in the IntelliJ IDEA status bar. Definitions are global; each open project runs
@@ -43,6 +43,8 @@ Examples:
 | Kubernetes | `kubectl config current-context` | 30 s |
 
 These are examples, not presets; new installations start with an empty list.
+See the [useful commands reference](docs/COMMANDS.md) for more commands grouped by
+category, with descriptions and example output.
 Global definitions, stable IDs, order, and enabled flags are saved in the IDE's
 `options/cmd-widget.xml`. Output and execution state are not persisted.
 

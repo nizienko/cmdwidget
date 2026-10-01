@@ -93,6 +93,54 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         assertTrue(Disposer.isDisposed(secondGit))
     }
 
+    fun testReorderingUpdatesStatusBarPositionsAndKeepsPresentations() {
+        val bar = bar()
+        val host = install(bar)
+        val original = CmdWidgetHost.PROTOTYPE
+        fun assertOrder(definitions: List<Pair<String, String>>) {
+            val components = definitions.map { (id, text) ->
+                val widget = bar.getWidget("CmdWidget.$id") as CmdTextWidget
+                assertEquals(text, widget.label)
+                assertFalse(Disposer.isDisposed(widget))
+                widget.component
+            }
+            val positions = components.map {
+                (it.parent.layout as java.awt.GridBagLayout).getConstraints(it).gridx
+            }
+            assertTrue("Widgets must follow the configured order", positions.zipWithNext().all { (left, right) -> left < right })
+            assertEquals(definitions.size + 1, bar.allWidgets!!.size)
+        }
+
+        assertOrder(original)
+        host.reconcile(original.reversed())
+        assertOrder(original.reversed())
+        val reordered = original.map { (id, _) -> bar.getWidget("CmdWidget.$id")!! }
+        host.reconcile(original.reversed())
+        reordered.forEach { assertSame(it, bar.getWidget(it.ID())) }
+        host.reconcile(original)
+        assertOrder(original)
+
+        Disposer.dispose(host)
+        original.forEach { (id, _) -> assertNull(bar.getWidget("CmdWidget.$id")) }
+    }
+
+    fun testInsertingWidgetBetweenExistingWidgetsUpdatesPositions() {
+        val bar = bar()
+        val host = install(bar)
+        val first = bar.getWidget("CmdWidget.prototype-git")!!
+        val definitions = listOf(CmdWidgetHost.PROTOTYPE[0], "middle" to "Middle", CmdWidgetHost.PROTOTYPE[1])
+        host.reconcile(definitions)
+        assertSame(first, bar.getWidget(first.ID()))
+        val positions = definitions.map { (id, text) ->
+            val widget = bar.getWidget("CmdWidget.$id") as CmdTextWidget
+            assertEquals(text, widget.label)
+            val component = widget.component
+            (component.parent.layout as java.awt.GridBagLayout).getConstraints(component).gridx
+        }
+        assertTrue("The new widget must appear between existing widgets", positions.zipWithNext().all { (left, right) -> left < right })
+        assertEquals(4, bar.allWidgets!!.size)
+    }
+
     fun testDisposalBeforeDeferredInstallAndReopenDoNotDuplicateWidgets() {
         val bar = bar()
         val pending = CmdWidgetHost()

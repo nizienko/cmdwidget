@@ -103,12 +103,15 @@ internal class CmdWidgetHost(
         if (disposed) return
         val bar = statusBar ?: return
         require(definitions.map { it.id }.distinct().size == definitions.size)
-        val desiredIds = definitions.mapTo(hashSetOf()) { it.id }
-        for (id in widgets.keys.toList()) {
-            if (id !in desiredIds) {
-                val widget = widgets.remove(id)!!
-                if (bar.getWidget(widget.ID()) === widget) bar.removeWidget(widget.ID())
-            }
+        val desiredIds = definitions.map { it.id }
+        val currentIds = widgets.keys.toList()
+        val unchangedPrefix = currentIds.zip(desiredIds).takeWhile { (current, desired) -> current == desired }.size
+        // StatusBar anchors are fixed at insertion; updateWidget only refreshes the
+        // presentation. Recreate the changed suffix to apply order and new anchors.
+        // removeWidget disposes instances, so they must not be added again.
+        for (id in currentIds.drop(unchangedPrefix)) {
+            val widget = widgets.remove(id)!!
+            if (bar.getWidget(widget.ID()) === widget) bar.removeWidget(widget.ID())
         }
         var anchor = "after $ID"
         for ((id, text, tooltip, details, percentage) in definitions) {

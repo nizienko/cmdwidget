@@ -1,4 +1,4 @@
-# Cmd Widget
+# Cmd Widgets
 
 Cmd Widget is a JetBrains IDE plugin that allows users to create configurable widgets whose values are produced by executing terminal commands.
 

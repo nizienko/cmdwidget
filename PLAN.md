@@ -1,4 +1,4 @@
-# Cmd Widget implementation plan
+# Cmd Widgets implementation plan
 
 This plan implements the MVP defined in [IDEA.md](IDEA.md). The repository already contains `frontend`, `backend`, and `shared` modules with split mode enabled. Extend that scaffold and keep the plugin runnable after each stage. These stages are planned work, not completed functionality.
 
