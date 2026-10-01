@@ -56,7 +56,9 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
                     }
                     assertEquals(listOf("backend"), snapshot.widgets.map { it.configuration.id })
                     assertTrue(snapshot.widgets.single().latestResult.toString(), snapshot.widgets.single().latestResult!!.successful)
-                    assertEquals(directory.toFile().canonicalPath, snapshot.widgets.single().latestResult!!.stdout.trim())
+                    assertTrue(java.nio.file.Files.isSameFile(
+                        directory, java.nio.file.Path.of(snapshot.widgets.single().latestResult!!.stdout.trim()),
+                    ))
                     settings.replaceDefinitions(listOf(frontend, backend.copy(executionTarget = ExecutionTarget.FRONTEND)))
                     runtime.state.first { it.widgets.isEmpty() }
                 }
@@ -137,7 +139,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
                 assertNull(custom.error)
                 val customTest = api.testCommand(id, directoryCommand, customRoot.toString())
                 assertTrue(customTest.toString(), customTest.successful)
-                assertEquals(customRoot.toFile().canonicalPath, customTest.stdout.trim())
+                assertTrue(java.nio.file.Files.isSameFile(customRoot, java.nio.file.Path.of(customTest.stdout.trim())))
             } finally { com.intellij.openapi.util.io.FileUtil.delete(customRoot.toFile()) }
             assertEquals(initial, api.observe(id).first())
 

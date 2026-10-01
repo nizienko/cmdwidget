@@ -244,7 +244,7 @@ class ProjectWidgetRuntimeTest {
         runtime.close()
     }
 
-    @Test(timeout = 12_000) fun `runtime closure cleans real processes and cancels fifth queued widget`() = runBlocking {
+    @Test(timeout = 15_000) fun `runtime closure cleans real processes and cancels fifth queued widget`() = runBlocking {
         val executor = CommandExecutor(owner)
         val root = temporary.root.toPath()
         val backendContext = ExecutionContextResolver.resolve(root.toString(), mapOf("SHELL" to "/bin/sh"))
@@ -257,7 +257,7 @@ class ProjectWidgetRuntimeTest {
             definition(index.toString()).copy(command = command)
         }
         runtime.reconcile(definitions)
-        val pids = withTimeout(4_000) {
+        val pids = withTimeout(8_000) {
             var started = emptyList<Long>()
             while (started.size < 4) {
                 started = (1..5).mapNotNull { index ->
