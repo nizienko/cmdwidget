@@ -163,22 +163,22 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         val widget = bar.getWidget("CmdWidget.live")!!
         fun text() = (widget.getPresentation() as StatusBarWidget.TextPresentation).getText()
         host.accept(BackendStateEvent.Snapshot(1, state(9, "obsolete")))
-        assertEquals("Live: current", text())
+        assertEquals("current", text())
         host.accept(BackendStateEvent.Disconnected(1))
-        assertEquals("Live: current [stale]", text())
+        assertEquals("current [stale]", text())
         host.accept(BackendStateEvent.Snapshot(1, state(11, "too late")))
-        assertEquals("Live: current [stale]", text())
+        assertEquals("current [stale]", text())
         host.accept(BackendStateEvent.Snapshot(2, state(1, "reconnected")))
         assertSame(widget, bar.getWidget(widget.ID()))
-        assertEquals("Live: reconnected", text())
+        assertEquals("reconnected", text())
         host.accept(BackendStateEvent.Disconnected(1))
         host.accept(BackendStateEvent.Snapshot(1, state(99, "old connection")))
-        assertEquals("Live: reconnected", text())
+        assertEquals("reconnected", text())
         host.accept(BackendStateEvent.Snapshot(2, state(2, "disabled", enabled = false)))
         assertNull(bar.getWidget(widget.ID()))
     }
 
-    fun testFailureUpdatesTooltipRetainsWidgetAndMarksSuccessStale() {
+    fun testFailureRetainsNameTooltipWidgetAndMarksSuccessStale() {
         val bar = bar()
         val host = install(bar)
         val initial = state(1, "connected")
@@ -190,12 +190,34 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(2, listOf(failed))))
         assertSame(widget, bar.getWidget(widget.ID()))
         val presentation = widget.getPresentation() as StatusBarWidget.TextPresentation
-        assertEquals("Live: connected [stale]", presentation.getText())
-        assertTrue(presentation.getTooltipText()!!.contains("diagnostic"))
-        assertTrue(presentation.getTooltipText()!!.contains("remote-host"))
+        assertEquals("connected [stale]", presentation.getText())
+        assertEquals("Live\n(empty)", presentation.getTooltipText())
         Disposer.dispose(host)
         host.accept(BackendStateEvent.Snapshot(2, state(3, "after disposal")))
         assertNull(bar.getWidget(widget.ID()))
+    }
+
+    fun testPopupDetailsUpdateWhenDisplayedValueDoesNotChange() {
+        val bar = bar()
+        val host = install(bar)
+        val initial = state(1, "connected")
+        host.accept(BackendStateEvent.Snapshot(1, initial))
+        val widget = bar.getWidget("CmdWidget.live") as CmdTextWidget
+        val changed = initial.widgets.single().let {
+            it.copy(configuration = it.configuration.copy(command = "echo updated", refreshIntervalSeconds = 23))
+        }
+        host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(2, listOf(changed))))
+        assertSame(widget, bar.getWidget(widget.ID()))
+        assertEquals("connected", widget.label)
+        assertEquals("echo updated", widget.details!!.command)
+        assertEquals("Every 23 s", widget.details!!.parameters.toMap()["Refresh"])
+        val content = widget.createDetailsPanel()
+        val header = content.components.first() as javax.swing.JPanel
+        assertEquals("Live", (header.components.first() as javax.swing.JLabel).text)
+        val settings = header.components.last() as javax.swing.JButton
+        assertNotNull(settings.icon)
+        assertEquals("Open Cmd Widget settings", settings.accessibleContext.accessibleName)
+        assertNull(com.intellij.ide.HelpTooltip.getTooltipFor(widget.component)!!.link)
     }
 
     fun testBackendDisconnectMarksOnlyBackendWidgetsStaleAndLocalUpdatesContinue() {
@@ -207,13 +229,13 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         ))
         host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(1, listOf(backend, local)), connected = false))
         fun text(id: String) = (bar.getWidget("CmdWidget.$id")!!.getPresentation() as StatusBarWidget.TextPresentation).getText()
-        assertEquals("Live: remote [stale]", text("live"))
-        assertEquals("Local: remote", text("local"))
+        assertEquals("remote [stale]", text("live"))
+        assertEquals("remote", text("local"))
         val nextResult = local.latestResult!!.copy(stdout = "updated")
         host.accept(BackendStateEvent.Snapshot(1, ProjectWidgetState(2, listOf(backend,
             local.copy(latestResult = nextResult, lastSuccessfulResult = nextResult))), connected = false))
-        assertEquals("Local: updated", text("local"))
-        assertEquals("Live: remote [stale]", text("live"))
+        assertEquals("updated", text("local"))
+        assertEquals("remote [stale]", text("live"))
     }
 
     fun testDisposalCancelsSubscriptionAndQueuedDeliveryCannotRecreateWidgets() {

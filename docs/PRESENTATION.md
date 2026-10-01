@@ -21,6 +21,13 @@ Disposing the host cancels its subscription and rejects queued UI updates.
 
 Each enabled definition keeps its own status bar widget. Changes update label and
 tooltip in place; disabled or removed definitions remove only their widget.
+The label shows only the command value, without a widget-name prefix. Hovering
+shows the widget name on the first line and the latest command stdout on the
+second, normalized to one line (or an empty/pending placeholder). Clicking the widget hides the tooltip and
+opens a balloon above the status bar, with the name, command preview (up to 120
+Unicode code points), execution target, refresh interval, status, and available
+host/directory/shell and exit/duration information. Its settings icon opens Cmd
+Widget settings. Clicking outside dismisses the balloon.
 The latest successful stdout remains visible during refresh. A failed latest
 attempt or a disconnected frontend adds `[stale]` to retained successful values.
 Without a successful result, states show `…`, `(error)`, or `(disconnected)`.
@@ -28,12 +35,11 @@ Successful empty normalized output displays `(empty)`.
 
 The formatter removes CSI, OSC, DCS, SOS, PM, and APC sequences, their C1 forms,
 and other non-display control characters. It collapses whitespace to one line and
-bounds the value to 80 Unicode code points, including an ellipsis. Diagnostics
-retain line breaks, remove terminal controls, bound output previews to 2048 code
-points per stream, and escape HTML. Tooltips include status, last-success and
-completion times, backend host/root/shell, exit code, duration, timeout/errors,
-and stream capture truncation indicators. An ellipsis indicates a shortened
-tooltip preview independently of capture truncation.
+bounds the value to 80 Unicode code points, including an ellipsis. Tooltip names
+use the same normalization and display as plain text. The interactive platform
+tooltip is suppressed while the details balloon is open. Output updates and
+renaming refresh the tooltip, and widget disposal releases its listeners
+and closes the balloon. Each click opens details from the latest received state.
 
 ## Temporary runnable demo
 
@@ -78,11 +84,12 @@ available; `scripts/test-backend-linux.sh` runs those two suites without IDE UI.
 ## Manual acceptance
 
 1. Run `./gradlew runIde`. Open a repository and confirm separate live Git and
-   Disk widgets. Hover each for host, root, shell, timestamps, and execution details.
+   Disk widgets. Hover each for its name, click the widget for its details, and
+   click the settings icon in the balloon to open Cmd Widget settings.
 2. Open another repository in a separate window and confirm independent branch
    values. Close and reopen one project; check that widgets are not duplicated.
 3. Open a directory without a Git repository. Git should show `(error)` and explain
-   the nonzero exit in its tooltip; Disk should continue refreshing.
+   the nonzero exit when testing the command in settings; Disk should continue refreshing.
 4. Once editable definitions arrive, exercise multiline/color output, empty
    stdout, long output, timeout, and a success followed by failure. Formatter and
    state-delivery tests already cover these presentation transitions.

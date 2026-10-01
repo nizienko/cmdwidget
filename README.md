@@ -89,8 +89,11 @@ are failures.
 During refresh, the last successful value remains visible. Failure or disconnect
 marks a retained value as stale; failure before the first success shows an error.
 Frontend widgets keep updating when the backend disconnects.
-Tooltips include bounded diagnostics, host/directory/shell, exit/error, duration,
-completion time, and last successful update time.
+The status bar shows only the command result, without a widget-name prefix.
+Hover a widget to see its name on the first line and its latest output on the second.
+Click the widget to open a balloon with its name,
+shortened command preview, refresh interval, execution target, and execution status/context.
+The settings icon in the balloon opens Cmd Widget settings.
 
 ## Troubleshooting and limitations
 

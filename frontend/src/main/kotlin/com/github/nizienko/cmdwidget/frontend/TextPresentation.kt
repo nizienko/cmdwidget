@@ -1,9 +1,12 @@
 package com.github.nizienko.cmdwidget.frontend
 
 import com.github.nizienko.cmdwidget.shared.WidgetState
-import java.time.Instant
 
-internal data class WidgetPresentation(val id: String, val text: String, val tooltip: String)
+internal data class WidgetDetails(val name: String, val command: String, val parameters: List<Pair<String, String>>)
+
+internal data class WidgetPresentation(
+    val id: String, val text: String, val tooltip: String, val details: WidgetDetails? = null,
+)
 
 internal object TextPresentation {
     fun format(state: WidgetState, connected: Boolean = true): WidgetPresentation {
@@ -16,48 +19,41 @@ internal object TextPresentation {
             latest != null && !latest.successful -> "(error)"
             else -> "…"
         }
-        val status = when {
-            !connected -> "Disconnected from backend"
-            stale -> "Stale: latest refresh failed"
-            state.refreshing -> "Refreshing (or queued)"
-            latest == null -> "Pending"
-            latest.successful -> "Success"
-            else -> "Error"
-        }
-        val context = (latest ?: success)?.context
-        val details = buildString {
-            appendLine(status)
-            if (state.refreshing && stale && connected) appendLine("Retrying (or queued)")
-            appendLine("Last successful update: ${success?.let { Instant.ofEpochMilli(it.completedAtEpochMillis) } ?: "never"}")
-            context?.let {
-                appendLine("Host: ${bounded(it.host, 256)}")
-                appendLine("Directory: ${bounded(it.workingDirectory ?: "unavailable", 1024)}")
-                appendLine("Shell: ${bounded(it.shell, 512)}")
-            }
-            latest?.let {
-                appendLine("Completed: ${Instant.ofEpochMilli(it.completedAtEpochMillis)}")
-                appendLine("Exit code: ${it.exitCode ?: "none"}; duration: ${it.durationMillis} ms")
-                if (it.timedOut) appendLine("Timed out")
-                listOf(it.contextError, it.startupError, it.executionError, it.cleanupError).filterNotNull()
-                    .forEach { error -> appendLine(bounded(error, 512)) }
-                appendLine("stdout${if (it.stdoutTruncated) " (capture truncated)" else ""}:")
-                appendLine(bounded(it.stdout, 2048))
-                appendLine("stderr${if (it.stderrTruncated) " (capture truncated)" else ""}:")
-                append(bounded(it.stderr, 2048))
-            }
-        }
         return WidgetPresentation(
             state.configuration.id,
-            "${normalize(state.configuration.name)}: $value${if (stale) " [stale]" else ""}",
-            "<html><pre>${escapeHtml(details)}</pre></html>",
+            "$value${if (stale) " [stale]" else ""}",
+            "${normalize(state.configuration.name)}\n${(latest ?: success)?.let { normalize(it.stdout).ifEmpty { "(empty)" } } ?: value}",
+            WidgetDetails(
+                normalize(state.configuration.name),
+                normalize(state.configuration.command, 120),
+                buildList {
+                    add("Run on" to state.configuration.executionTarget.name.lowercase().replaceFirstChar { it.uppercase() })
+                    add("Refresh" to "Every ${state.configuration.refreshIntervalSeconds} s")
+                    add("Status" to when {
+                        !connected -> "Disconnected"
+                        state.refreshing -> "Refreshing"
+                        stale -> "Stale: last refresh failed"
+                        latest == null -> "Pending"
+                        latest.successful -> "Success"
+                        else -> "Error"
+                    })
+                    (latest ?: success)?.let { result ->
+                        add("Host" to normalize(result.context.host, 80))
+                        add("Directory" to normalize(result.context.workingDirectory ?: "Unavailable", 100))
+                        add("Shell" to normalize(result.context.shell, 80))
+                        add("Exit code" to (result.exitCode?.toString() ?: "None"))
+                        add("Duration" to "${result.durationMillis} ms")
+                    }
+                },
+            ),
         )
     }
 
-    fun normalize(raw: String): String = ellipsize(
-        clean(raw).replace(Regex("[\\s\\p{Z}]+"), " ").trim(), 80,
-    )
+    fun normalize(raw: String): String = normalize(raw, 80)
 
-    private fun bounded(raw: String, limit: Int): String = ellipsize(clean(raw), limit)
+    fun normalize(raw: String, limit: Int): String = ellipsize(
+        clean(raw).replace(Regex("[\\s\\p{Z}]+"), " ").trim(), limit,
+    )
 
     private fun ellipsize(value: String, limit: Int): String {
         if (value.codePointCount(0, value.length) <= limit) return value
@@ -93,6 +89,4 @@ internal object TextPresentation {
         }
     }
 
-    private fun escapeHtml(value: String) = value.replace("&", "&amp;")
-        .replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 }

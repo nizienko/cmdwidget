@@ -33,37 +33,52 @@ class TextPresentationTest {
     }
 
     @Test fun `pending empty errors and refresh use distinct states`() {
-        assertEquals("VPN: …", TextPresentation.format(state()).text)
-        assertEquals("VPN: (empty)", TextPresentation.format(state(result(" \n"))).text)
+        assertEquals("…", TextPresentation.format(state()).text)
+        assertEquals("(empty)", TextPresentation.format(state(result(" \n"))).text)
         val error = result("bad", 7)
-        assertEquals("VPN: (error)", TextPresentation.format(state(latest = error)).text)
-        assertEquals("VPN: connected", TextPresentation.format(state(result("connected")).copy(refreshing = true)).text)
-        assertTrue(TextPresentation.format(state(result("connected")).copy(refreshing = true)).tooltip.contains("Refreshing"))
+        assertEquals("(error)", TextPresentation.format(state(latest = error)).text)
+        assertEquals("connected", TextPresentation.format(state(result("connected")).copy(refreshing = true)).text)
+        assertEquals("VPN\nconnected", TextPresentation.format(state(result("connected")).copy(refreshing = true)).tooltip)
     }
 
     @Test fun `failure and disconnection mark retained success stale until new success`() {
         val success = result("connected")
         val failed = state(success, result("", 1))
-        assertEquals("VPN: connected [stale]", TextPresentation.format(failed).text)
-        assertTrue(TextPresentation.format(failed.copy(refreshing = true)).tooltip.contains("Retrying"))
-        assertEquals("VPN: connected [stale]", TextPresentation.format(state(success), connected = false).text)
-        assertEquals("VPN: (disconnected)", TextPresentation.format(state(), connected = false).text)
-        assertEquals("VPN: connected", TextPresentation.format(state(success)).text)
-        assertEquals("VPN: (empty)", TextPresentation.format(state(result(""))).text)
+        assertEquals("connected [stale]", TextPresentation.format(failed).text)
+        assertEquals("VPN\n(empty)", TextPresentation.format(failed.copy(refreshing = true)).tooltip)
+        assertEquals("connected [stale]", TextPresentation.format(state(success), connected = false).text)
+        assertEquals("(disconnected)", TextPresentation.format(state(), connected = false).text)
+        assertEquals("connected", TextPresentation.format(state(success)).text)
+        assertEquals("(empty)", TextPresentation.format(state(result(""))).text)
     }
 
-    @Test fun `diagnostics are bounded escaped and describe backend context and failures`() {
-        val failed = result("<html>" + "x".repeat(65_536), 2).copy(
-            stderr = "\u001b[31m<script>&\"\u001b[0m" + "y".repeat(65_536),
-            stdoutTruncated = true, stderrTruncated = true, timedOut = true,
-            durationMillis = 10_001, startupError = "failed <start>",
-        )
-        val tooltip = TextPresentation.format(state(result("connected"), failed)).tooltip
-        assertTrue(tooltip.length < 8_000)
-        assertTrue(tooltip.contains("&lt;html&gt;"))
-        assertFalse(tooltip.contains("<script>"))
-        assertFalse(tooltip.contains('\u001b'))
-        listOf("backend-host", "/repo", "/bin/sh", "1970-01-01T00:00:01Z", "10001 ms", "Timed out", "capture truncated", "failed &lt;start&gt;")
-            .forEach { assertTrue(it, tooltip.contains(it)) }
+    @Test fun `tooltip contains name and latest output on separate lines`() {
+        val success = result("connected")
+        assertEquals("VPN\n…", TextPresentation.format(state()).tooltip)
+        assertEquals("VPN\nconnected", TextPresentation.format(state(success)).tooltip)
+        assertEquals("VPN\ndiagnostic", TextPresentation.format(state(success, result("diagnostic", 2))).tooltip)
+        assertEquals("VPN\nfirst second", TextPresentation.format(state(result("first\nsecond"))).tooltip)
+        val renamed = state(success).copy(configuration = definition.copy(name = "Renamed VPN"))
+        assertEquals("Renamed VPN\nconnected", TextPresentation.format(renamed, connected = false).tooltip)
+        assertEquals("connected", TextPresentation.format(renamed).text)
+    }
+
+    @Test fun `popup bounds command preview and includes configuration and execution parameters`() {
+        val configured = state(result("connected")).copy(configuration = definition.copy(
+            command = "echo\n" + "🙂".repeat(150), refreshIntervalSeconds = 17,
+        ))
+        val details = TextPresentation.format(configured).details!!
+        assertEquals("VPN", details.name)
+        assertEquals(120, details.command.codePointCount(0, details.command.length))
+        assertTrue(details.command.endsWith("…"))
+        assertFalse(details.command.contains('\n'))
+        assertFalse(details.command.contains('\ufffd'))
+        val parameters = details.parameters.toMap()
+        assertEquals("Every 17 s", parameters["Refresh"])
+        assertEquals("Backend", parameters["Run on"])
+        assertEquals("Success", parameters["Status"])
+        assertEquals("backend-host", parameters["Host"])
+        assertEquals("/repo", parameters["Directory"])
+        assertEquals("0", parameters["Exit code"])
     }
 }
