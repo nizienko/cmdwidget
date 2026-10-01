@@ -8,6 +8,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TextPresentationTest {
+    @Test fun `percentage matches complete normalized output within valid range`() {
+        mapOf("0%" to 0.0, "100%" to 100.0, "42.5%" to 42.5, "42,5 %" to 42.5,
+            " \u001b[32m75%\u001b[0m\n" to 75.0).forEach { (output, expected) ->
+            assertEquals(expected, TextPresentation.format(state(result(output))).percentage!!, 0.001)
+        }
+        listOf("42", "CPU: 42%", "42% done", "42%\n50%", "-1%", "101%", "100.1%", "NaN%", "", "🙂")
+            .forEach { assertNull(it, TextPresentation.format(state(result(it))).percentage) }
+        assertNull(TextPresentation.format(state()).percentage)
+        assertNull(TextPresentation.format(state(latest = result("75%", 1))).percentage)
+    }
+
+    @Test fun `percentage retains successful value during failure refresh and disconnect`() {
+        val success = result("37.5%")
+        val failed = TextPresentation.format(state(success, result("99%", 1)))
+        assertEquals(37.5, failed.percentage!!, 0.001)
+        assertEquals("37.5% [stale]", failed.text)
+        assertEquals(37.5, TextPresentation.format(state(success), connected = false).percentage!!, 0.001)
+        assertEquals(37.5, TextPresentation.format(state(success).copy(refreshing = true)).percentage!!, 0.001)
+        assertNull(TextPresentation.format(state(result("ready"))).percentage)
+    }
+
     private val definition = CmdWidgetConfiguration("vpn", "VPN", "vpn status")
     private val context = ExecutionContext("backend-host", "/repo", "/bin/sh", "Linux")
     private fun result(text: String, exit: Int = 0) = CommandResult(

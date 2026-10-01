@@ -119,7 +119,11 @@ The settings icon in the balloon opens Cmd Widget settings.
 - Processes use best-effort bounded descendant cleanup; commands deliberately
   detaching children are outside the verified pipeline-cleanup scenarios.
 
-Only text presentation is available. Windows execution, project-specific
+Output matching a complete percentage (`42%`, `42.5%`, or `42,5 %`) in the range
+0–100 displays a progress bar with its value. Other output keeps the text
+presentation. The widget switches automatically as output changes.
+
+Windows execution, project-specific
 definitions, custom environment, presets, import/export, manual
 refresh, and cross-project deduplication are deferred. System commands execute
 once per project.

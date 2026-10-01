@@ -6,9 +6,16 @@ internal data class WidgetDetails(val name: String, val command: String, val par
 
 internal data class WidgetPresentation(
     val id: String, val text: String, val tooltip: String, val details: WidgetDetails? = null,
+    val percentage: Double? = null,
 )
 
 internal object TextPresentation {
+    private val percentagePattern = Regex("([0-9]+(?:[.,][0-9]+)?)\\s*%")
+
+    /** Match complete cleaned output before truncation or stale decoration. */
+    fun percentage(raw: String): Double? = percentagePattern.matchEntire(normalize(raw, Int.MAX_VALUE))
+        ?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()?.takeIf { it in 0.0..100.0 }
+
     fun format(state: WidgetState, connected: Boolean = true): WidgetPresentation {
         val success = state.lastSuccessfulResult
         val latest = state.latestResult
@@ -46,6 +53,7 @@ internal object TextPresentation {
                     }
                 },
             ),
+            percentage = success?.let { percentage(it.stdout) },
         )
     }
 

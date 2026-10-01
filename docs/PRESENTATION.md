@@ -33,6 +33,14 @@ attempt or a disconnected frontend adds `[stale]` to retained successful values.
 Without a successful result, states show `…`, `(error)`, or `(disconnected)`.
 Successful empty normalized output displays `(empty)`.
 
+Complete normalized successful output matching `([0-9]+(?:[.,][0-9]+)?)\s*%`
+with a numeric value from 0 to 100 uses a progress bar beside the percentage.
+Detection happens before truncation and stale decoration; all other output keeps
+the existing text presentation. The same component switches presentation in
+place, adjusts its preferred width, and scales its bar to the available space
+and IDE UI scale. Colors follow the IDE theme. Failed refreshes and disconnections
+retain the last successful bar value and append the existing `[stale]` indicator.
+
 The formatter removes CSI, OSC, DCS, SOS, PM, and APC sequences, their C1 forms,
 and other non-display control characters. It collapses whitespace to one line and
 bounds the value to 80 Unicode code points, including an ellipsis. Tooltip names

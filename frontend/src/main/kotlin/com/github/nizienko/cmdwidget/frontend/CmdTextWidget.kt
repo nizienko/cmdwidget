@@ -11,7 +11,6 @@ import com.intellij.openapi.ui.popup.LightweightWindowEvent
 import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
-import com.intellij.openapi.wm.impl.status.TextPanel
 import com.intellij.ui.ClickListener
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
@@ -29,11 +28,13 @@ import javax.swing.JButton
 /** A separate platform widget for every definition; IDs survive presentation edits. */
 internal class CmdTextWidget(
     val definitionId: String, label: String, tooltip: String = "", var details: WidgetDetails? = null,
+    percentage: Double? = null,
 ) :
     CustomStatusBarWidget, StatusBarWidget.TextPresentation {
     private val panel = lazy {
-        TextPanel().apply {
+        AdaptiveWidgetPanel().apply {
             text = this@CmdTextWidget.label
+            this.percentage = this@CmdTextWidget.percentage
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             object : ClickListener() {
                 override fun onClick(event: MouseEvent, clickCount: Int): Boolean {
@@ -47,6 +48,11 @@ internal class CmdTextWidget(
     private var statusBar: StatusBar? = null
     private var popup: Balloon? = null
     private var disposed = false
+    var percentage: Double? = percentage
+        set(value) {
+            field = value
+            if (panel.isInitialized()) panel.value.percentage = value
+        }
     var label: String = label
         set(value) {
             field = value

@@ -156,6 +156,52 @@ class CmdWidgetLifecycleTest : BasePlatformTestCase() {
         )))
     }
 
+    fun testPresentationAdaptsInPlaceBetweenTextAndPercentage() {
+        val bar = bar()
+        val host = install(bar)
+        host.accept(BackendStateEvent.Snapshot(1, state(1, "42%")))
+        val widget = bar.getWidget("CmdWidget.live") as CmdTextWidget
+        val component = widget.component as AdaptiveWidgetPanel
+        val percentageWidth = component.preferredSize.width
+        assertEquals(42.0, component.percentage!!, 0.001)
+        component.size = component.preferredSize
+        fun paint(): java.awt.image.BufferedImage {
+            val image = java.awt.image.BufferedImage(component.width, component.height, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+            val graphics = image.createGraphics()
+            try { component.paint(graphics) } finally { graphics.dispose() }
+            return image
+        }
+        fun barPixel(image: java.awt.image.BufferedImage, offset: Int) =
+            image.getRGB(component.insets.left + com.intellij.util.ui.JBUI.scale(offset), component.height / 2)
+        val partial = paint()
+        val filledColor = barPixel(partial, 18)
+        val emptyColor = barPixel(partial, 54)
+        assertFalse("42% must fill the first quarter but leave the third quarter empty", filledColor == emptyColor)
+        host.accept(BackendStateEvent.Disconnected(1))
+        assertEquals(42.0, component.percentage!!, 0.001)
+        assertEquals("42% [stale]", component.text)
+        host.accept(BackendStateEvent.Snapshot(2, state(2, "abc")))
+        assertSame(widget, bar.getWidget(widget.ID()))
+        assertSame(component, widget.component)
+        assertNull(component.percentage)
+        assertEquals("abc", component.text)
+        assertTrue(component.preferredSize.width < percentageWidth)
+        host.accept(BackendStateEvent.Snapshot(2, state(3, "100%")))
+        assertSame(component, widget.component)
+        assertEquals(100.0, component.percentage!!, 0.001)
+        assertEquals("Live\n100%", widget.tooltip)
+        component.size = component.preferredSize
+        val full = paint()
+        assertEquals(filledColor, barPixel(full, 18))
+        assertEquals(filledColor, barPixel(full, 54))
+        host.accept(BackendStateEvent.Snapshot(2, state(4, "0%")))
+        val empty = paint()
+        assertEquals(emptyColor, barPixel(empty, 18))
+        assertEquals(emptyColor, barPixel(empty, 54))
+        component.setSize(20, component.height)
+        paint()
+    }
+
     fun testLiveStateRejectsOldVersionsSessionsAndResponsesAfterDisconnect() {
         val bar = bar()
         val host = install(bar)

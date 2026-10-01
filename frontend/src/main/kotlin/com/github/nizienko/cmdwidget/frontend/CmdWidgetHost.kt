@@ -111,10 +111,10 @@ internal class CmdWidgetHost(
             }
         }
         var anchor = "after $ID"
-        for ((id, text, tooltip, details) in definitions) {
+        for ((id, text, tooltip, details, percentage) in definitions) {
             val existing = widgets[id]
             if (existing == null) {
-                val widget = CmdTextWidget(id, text, tooltip, details)
+                val widget = CmdTextWidget(id, text, tooltip, details, percentage)
                 widgets[id] = widget
                 // The parentDisposable overload queues removal by ID on off-EDT
                 // disposal, which can remove a replacement instance. Own the widget
@@ -123,9 +123,10 @@ internal class CmdWidgetHost(
                 Disposer.register(this, widget)
             } else {
                 existing.details = details
-                if (existing.label != text || existing.tooltip != tooltip) {
+                if (existing.label != text || existing.tooltip != tooltip || existing.percentage != percentage) {
                     existing.label = text
                     existing.tooltip = tooltip
+                    existing.percentage = percentage
                     bar.updateWidget(existing.ID())
                 }
             }
