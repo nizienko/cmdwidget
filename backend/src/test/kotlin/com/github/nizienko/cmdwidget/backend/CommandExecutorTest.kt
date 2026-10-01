@@ -1,6 +1,7 @@
 package com.github.nizienko.cmdwidget.backend
 
 import com.github.nizienko.cmdwidget.shared.CommandExecutor
+import com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService
 import com.github.nizienko.cmdwidget.shared.ExecutionContextResolver
 
 import com.github.nizienko.cmdwidget.shared.ExecutionContext
@@ -41,6 +42,24 @@ class CommandExecutorTest {
 
     @After fun tearDown() = runBlocking {
         if (::scope.isInitialized) scope.coroutineContext[Job]!!.cancelAndJoin()
+    }
+
+    @Test(timeout = 15_000) fun `onboarding commands execute with standard shell in directories with spaces`() = runBlocking {
+        val directory = temporary.newFolder("project with spaces")
+        val resolved = ExecutionContextResolver.resolve(directory.absolutePath, mapOf("SHELL" to "/bin/sh"))
+        val settings = CmdWidgetSettingsService()
+        settings.noStateLoaded()
+        val outputs = settings.effectiveDefinitions.value.associate { definition ->
+            val result = executor.execute(definition.command, resolved)
+            assertTrue("${definition.name}: $result", result.successful)
+            assertEquals("", result.stderr)
+            definition.name to result.stdout.trim()
+        }
+        assertTrue(outputs.getValue("Time").matches(Regex("\\d{2}:\\d{2}")))
+        assertEquals(directory.name, outputs.getValue("Project"))
+        val percentage = outputs.getValue("Disk usage").removeSuffix("%").toInt()
+        assertTrue(outputs.getValue("Disk usage").endsWith("%"))
+        assertTrue(percentage in 0..100)
     }
 
     @Test(timeout = 15_000) fun `working directory stdin and shell arguments are correct`() = runBlocking {
@@ -249,7 +268,7 @@ class CommandExecutorTest {
         assertNull(context.error)
         assertNotNull(ExecutionContextResolver.resolve(null).error)
         assertNotNull(ExecutionContextResolver.resolve("relative-root").error)
-        assertNotNull(ExecutionContextResolver.resolve(temporary.root.path, operatingSystem = "Windows 11").error)
+        assertNotNull(ExecutionContextResolver.resolve(temporary.root.path, operatingSystem = "FreeBSD").error)
     }
 
     private suspend fun awaitFile(path: Path) = withTimeout(4_000) {

@@ -11,9 +11,16 @@ command result.
 
 The context resolver uses the project's absolute, readable, searchable root. A
 missing/invalid root or unsupported OS produces a context error without starting a
-process. An absolute executable `SHELL` is selected, falling back to `/bin/sh`.
-The executor starts `[shell, "-lc", command]` with inherited backend environment
-and immediately closes stdin. Login-shell startup is included in the fixed
+process. On macOS/Linux an absolute executable `SHELL` is selected, falling back
+to `/bin/sh`; the executor starts `[shell, "-lc", command]`. On Windows it selects
+an absolute executable `ComSpec` (environment keys are case insensitive), falling
+back to `SystemRoot\System32\cmd.exe`, or `C:\Windows\System32\cmd.exe`.
+`HostShell` builds `[shell, "/d", "/s", "/a", "/c", "chcp 65001 >nul && " + command]`.
+This disables AutoRun and selects UTF-8 for built-ins and console programs that
+honor the code page. Programs with a fixed output encoding need explicit UTF-8
+configuration; Windows PowerShell starter commands set `Console.OutputEncoding`.
+The selected host's environment is inherited and stdin is immediately closed.
+Shell startup is included in the fixed
 10-second timeout; time spent waiting for a slot is excluded.
 
 Stdout and stderr are drained separately and concurrently. Each captures at most
@@ -38,6 +45,20 @@ scope. Scheduling and frontend RPC are subsequent stages; the status bar still
 shows the hardcoded stage-1 values.
 
 ## Verification
+
+`HostShellTest` verifies OS selection, argument construction, Windows environment
+resolution, and OS-specific defaults on any host. `WindowsCommandExecutorTest`
+runs only on Windows and covers Unicode, pipes, stderr/exit codes, quoted executable
+paths, directories with spaces, starter values, timeout, and child cancellation.
+Run `gradlew.bat :backend:test :frontend:test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure --offline`
+on Windows with Java 21 and populated dependency caches (omit `--offline` on the first run).
+The original Unix process suite remains skipped on Windows.
+RPC tests select `cd`/`echo` on Windows, and the runtime process-cleanup test
+uses a sleeping PowerShell child, so these integration suites can run on either OS.
+
+Shell flags and code-page setup follow Microsoft's documentation for
+[cmd](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd)
+and [chcp](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/chcp).
 
 Run:
 

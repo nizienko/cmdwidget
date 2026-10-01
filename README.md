@@ -7,8 +7,9 @@ host, including in split mode. Existing definitions default to backend execution
 
 Version 1.0 targets IntelliJ Platform builds 261 and newer, without an upper build
 limit. The build and bytecode compatibility checks use IntelliJ IDEA 2026.1.5;
-later builds have not been verified. Command execution supports macOS and Linux
-hosts; Windows execution is not supported.
+later builds have not been verified. Command execution supports macOS, Linux,
+and Windows hosts. Native Windows execution tests are provided but have not yet
+been run on Windows; see [verification status](docs/VERIFICATION.md).
 
 [Source code](https://github.com/nizienko/cmdwidget) ·
 [Report an issue](https://github.com/nizienko/cmdwidget/issues) · [MIT License](LICENSE)
@@ -24,6 +25,26 @@ Build with Java 21:
 Install `build/distributions/cmdwidget-1.0.zip` through Settings /
 Preferences → Plugins → gear menu → Install Plugin from Disk. In remote
 development, install the plugin on both frontend and backend.
+
+Fresh installations include three enabled widgets. On macOS/Linux they use
+standard utilities, with no additional CLI dependencies:
+
+| Name | Command | Interval |
+| --- | --- | --- |
+| Time | `date '+%H:%M'` | 10 s |
+| Project | `basename "$PWD"` | 60 s |
+| Disk usage | `df -P . \| awk 'NR == 2 {print $5}'` | 60 s |
+
+On Windows the same widgets use built-in Windows PowerShell (`powershell.exe`),
+with profiles disabled and UTF-8 output: `Get-Date -Format 'HH:mm'`,
+`Split-Path -Leaf (Get-Location).Path`, and the percentage of used space from
+`Get-PSDrive`. Defaults follow the OS where settings are first created. In remote
+development with different frontend/backend OSs, edit commands for the selected
+execution host; saved command strings are synchronized verbatim.
+
+They run on the backend in each project's root directory. Disk usage displays
+as a percentage progress bar. Edit, disable, or remove them in settings.
+Existing saved settings, including an empty list, are preserved.
 
 Open Settings / Preferences → Tools → Cmd Widget. Click Add, enter Name, Command,
 a positive whole-second Refresh interval, Enabled, and Run command on (BACKEND or
@@ -45,7 +66,7 @@ Examples:
 | Git | `git branch --show-current` | 5 s |
 | Kubernetes | `kubectl config current-context` | 30 s |
 
-These are examples, not presets; new installations start with an empty list.
+These additional examples are not installed automatically.
 See the [useful commands reference](docs/COMMANDS.md) for more commands grouped by
 category, with descriptions and example output.
 Global definitions, stable IDs, order, and enabled flags are saved in the IDE's
@@ -68,10 +89,17 @@ Disk space, CLI configuration, environment, and permissions belong
 to the selected host. Two projects can therefore show different Git branches for
 one global definition.
 
-The selected host uses an absolute executable `SHELL` from its environment, falling
-back to `/bin/sh`, and launches a non-interactive login shell with `-lc`. It
-inherits that host's environment; shell startup files may alter it. This need not
-match an interactive IDE terminal. Use absolute executable paths or explicit
+On macOS/Linux the selected host uses an absolute executable `SHELL` from its
+environment, falling back to `/bin/sh`, and launches a non-interactive login shell
+with `-lc`. On Windows it uses an absolute executable `ComSpec`, falling back to
+`SystemRoot\System32\cmd.exe` (normally `C:\Windows\System32\cmd.exe`), with
+`/d /s /a /c`. AutoRun is disabled. Each Windows command starts with
+`chcp 65001 >nul &&` to select UTF-8, and capture is decoded as UTF-8. Programs that
+force another encoding must be configured to emit UTF-8. For PowerShell commands,
+invoke `powershell.exe -NoProfile -NonInteractive -Command "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); ..."`
+explicitly. Shell selection is automatic; there is no shell setting.
+The process inherits that host's environment; Unix shell startup files may alter
+it. This need not match an interactive IDE terminal. Use absolute executable paths or explicit
 environment assignments when needed. Stdin is closed. Commands run with the
 selected host user's permissions and can have side effects.
 
@@ -108,8 +136,8 @@ The settings icon in the balloon opens Cmd Widget settings.
 
 ## Troubleshooting and limitations
 
-- No widgets: create and Apply an enabled definition and make sure the status bar
-  is visible. New installations contain no demo commands.
+- No widgets: enable a definition or create and Apply one, and make sure the status
+  bar is visible. Removed starter widgets are not added again to saved settings.
 - Command not found or wrong environment: inspect the backend host/shell and use
   an absolute path. Login-shell setup can differ from the IDE terminal.
 - Test command disabled: open/select a project with a usable backend root. After
@@ -127,8 +155,7 @@ Output matching a complete percentage (`42%`, `42.5%`, or `42,5 %`) in the range
 0–100 displays a progress bar with its value. Other output keeps the text
 presentation. The widget switches automatically as output changes.
 
-Windows execution, project-specific
-definitions, custom environment, presets, import/export, manual
+Project-specific definitions, custom environment, a preset chooser, import/export, manual
 refresh, and cross-project deduplication are deferred. System commands execute
 once per project.
 
@@ -150,6 +177,18 @@ removal APIs are used.
 ./gradlew runIde
 ./gradlew runIdeSplitMode
 ```
+
+On Windows use `gradlew.bat` instead of `./gradlew`. The backend test task includes
+native Windows cases for Unicode, quotes and paths with spaces, starter commands,
+timeout, and cancellation; these cases are skipped on macOS/Linux.
+
+GitHub Actions [CI](.github/workflows/ci.yml) runs the same tests and plugin checks
+on Windows, Linux, and macOS for pushes and pull requests. It can also be started
+manually from Actions → CI → Run workflow. Each OS uploads HTML/XML test reports
+(including on failure) and a plugin ZIP after successful checks; artifacts are
+kept for 14 days. Download `test-reports-windows-latest` to inspect native Windows
+test results, or `cmdwidget-windows-latest` to install the built plugin for manual
+Windows IDE acceptance.
 
 Run configurations provide ordinary and split-mode launches. Automated suites
 cover execution limits/cleanup, runtime reconciliation, persistence, RPC,

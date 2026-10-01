@@ -23,7 +23,7 @@
             <li>Retain the last successful value and mark it as stale after a failure.</li>
         </ul>
         <p>Open Settings / Preferences &gt; Tools &gt; Cmd Widget to create your first widget.
-        Command execution supports macOS and Linux hosts. Commands run with your user
+        Command execution supports macOS, Linux, and Windows hosts. Commands run with your user
         permissions; configure only commands you trust.</p>
         <p><a href="https://github.com/nizienko/cmdwidget">Source code and documentation</a> |
         <a href="https://github.com/nizienko/cmdwidget/issues">Report an issue</a> |
@@ -37,7 +37,7 @@
             <li>Global settings, per-project results, refresh intervals, and working directories.</li>
             <li>Frontend and backend execution with remote development support.</li>
             <li>Explicit command testing, execution diagnostics, and stale-value indicators.</li>
-            <li>Bounded output capture, timeouts, and cancellation on macOS and Linux.</li>
+            <li>Bounded output capture, timeouts, and cancellation on macOS, Linux, and Windows.</li>
         </ul>
     ]]></change-notes>
 

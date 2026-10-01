@@ -72,7 +72,7 @@ class CmdWidgetSettingsTest {
         assertEquals(2, settings.state.widgets.size)
     }
 
-    @Test fun `Apply validates atomically repeated Apply is unchanged and absent state clears definitions`() {
+    @Test fun `Apply validates atomically and repeated Apply is unchanged`() {
         val settings = CmdWidgetSettingsService()
         val definitions = listOf(widget("git"))
         settings.replaceDefinitions(definitions)
@@ -87,10 +87,49 @@ class CmdWidgetSettingsTest {
             } catch (_: IllegalArgumentException) { }
             assertEquals(definitions, settings.effectiveDefinitions.value)
         }
-        settings.noStateLoaded()
-        assertTrue(settings.effectiveDefinitions.value.isEmpty())
-        assertTrue(settings.stateModificationCount > count)
         assertEquals(RemoteSettingInfo.Direction.InitialFromFrontend,
             CmdWidgetRemoteSettingInfoProvider().getRemoteSettingsInfo().getValue("CmdWidgetSettings").direction)
+    }
+
+    @Test fun `absent settings seed enabled portable widgets with stable IDs`() {
+        val settings = CmdWidgetSettingsService()
+        settings.noStateLoaded()
+        val defaults = settings.effectiveDefinitions.value
+        assertEquals(listOf("Time", "Project", "Disk usage"), defaults.map { it.name })
+        assertEquals(3, defaults.map { it.id }.distinct().size)
+        assertTrue(defaults.all { it.enabled && it.executionTarget == ExecutionTarget.BACKEND &&
+            it.workingDirectory.isEmpty() && it.validationError() == null })
+        assertTrue(settings.stateModificationCount > 0)
+
+        val otherInstallation = CmdWidgetSettingsService()
+        otherInstallation.noStateLoaded()
+        assertEquals(defaults, otherInstallation.effectiveDefinitions.value)
+
+        val restored = CmdWidgetSettingsService()
+        restored.loadState(XmlSerializer.deserialize(XmlSerializer.serialize(settings.state),
+            CmdWidgetSettingsService.SettingsState::class.java))
+        assertEquals(defaults, restored.effectiveDefinitions.value)
+    }
+
+    @Test fun `saved empty settings stay empty after removing onboarding widgets`() {
+        val settings = CmdWidgetSettingsService()
+        settings.noStateLoaded()
+        settings.replaceDefinitions(emptyList())
+        val xml = XmlSerializer.serialize(settings.state)
+        assertEquals("true", xml.getChildren("option").single { it.getAttributeValue("name") == "initialized" }
+            .getAttributeValue("value"))
+        val restored = CmdWidgetSettingsService()
+        restored.noStateLoaded()
+        restored.loadState(XmlSerializer.deserialize(xml,
+            CmdWidgetSettingsService.SettingsState::class.java))
+        assertTrue(restored.effectiveDefinitions.value.isEmpty())
+    }
+
+    @Test fun `legacy empty settings do not receive starter widgets`() {
+        val settings = CmdWidgetSettingsService()
+        settings.noStateLoaded()
+        settings.loadState(XmlSerializer.deserialize(Element("SettingsState"),
+            CmdWidgetSettingsService.SettingsState::class.java))
+        assertTrue(settings.effectiveDefinitions.value.isEmpty())
     }
 }

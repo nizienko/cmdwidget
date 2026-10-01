@@ -15,6 +15,8 @@ import java.util.UUID
 @State(name = "CmdWidgetSettings", storages = [Storage("cmd-widget.xml")])
 class CmdWidgetSettingsService : PersistentStateComponentWithModificationTracker<CmdWidgetSettingsService.SettingsState> {
     class SettingsState {
+        // Keep saved settings non-default even after all starter widgets are removed.
+        var initialized: Boolean = false
         var widgets: MutableList<Definition> = mutableListOf()
     }
 
@@ -43,6 +45,7 @@ class CmdWidgetSettingsService : PersistentStateComponentWithModificationTracker
 
     @Synchronized
     override fun getState(): SettingsState = SettingsState().also { state ->
+        state.initialized = true
         state.widgets = definitions.value.map { configuration ->
             Definition().apply {
                 id = configuration.id
@@ -63,7 +66,33 @@ class CmdWidgetSettingsService : PersistentStateComponentWithModificationTracker
         publish(state.widgets.mapNotNull { it.configuration() }.filter { seen.add(it.id) })
     }
 
-    override fun noStateLoaded() = loadState(SettingsState())
+    /** Seed only absent settings; a saved empty list means the user removed all widgets. */
+    @Synchronized
+    override fun noStateLoaded() {
+        publish(starterDefinitions(System.getProperty("os.name")))
+    }
+
+    companion object {
+        /** Defaults follow the settings host; saved commands are never rewritten. */
+        fun starterDefinitions(operatingSystem: String): List<CmdWidgetConfiguration> {
+            if (HostShell.forOperatingSystem(operatingSystem) == HostShell.WINDOWS) {
+                fun powershell(script: String) = "powershell.exe -NoLogo -NoProfile -NonInteractive -Command \"" +
+                    "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); $script\""
+                return listOf(
+                    CmdWidgetConfiguration("default-time", "Time", powershell("Get-Date -Format 'HH:mm'"), 10),
+                    CmdWidgetConfiguration("default-project", "Project", powershell("Split-Path -Leaf (Get-Location).Path"), 60),
+                    CmdWidgetConfiguration("default-disk-usage", "Disk usage", powershell(
+                        "\$d = Get-PSDrive -Name (Get-Item .).PSDrive.Name; " +
+                            "[string][math]::Round(100 * \$d.Used / (\$d.Used + \$d.Free)) + '%'"), 60),
+                )
+            }
+            return listOf(
+                CmdWidgetConfiguration("default-time", "Time", "date '+%H:%M'", 10),
+                CmdWidgetConfiguration("default-project", "Project", "basename \"\$PWD\"", 60),
+                CmdWidgetConfiguration("default-disk-usage", "Disk usage", "df -P . | awk 'NR == 2 {print \$5}'", 60),
+            )
+        }
+    }
 
     /** Apply is atomic: invalid drafts never change saved or running definitions. */
     @Synchronized

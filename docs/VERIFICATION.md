@@ -8,6 +8,31 @@ was performed.
 
 ## Automated checks
 
+Windows execution was added after the release checks below. The updated macOS
+run passed 72 tests (39 backend and 33 frontend); five native Windows tests were
+skipped. The plugin build and configuration/structure checks also passed.
+`HostShellTest` covers Windows strategy selection and defaults on macOS.
+`WindowsCommandExecutorTest` must still be run on a Windows host using Java 21:
+
+```bat
+gradlew.bat :backend:test :frontend:test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
+```
+
+Native Windows execution, encoding, and process cleanup are not yet verified.
+The bytecode verifier result below predates the Windows changes.
+
+The [CI workflow](../.github/workflows/ci.yml) runs these tasks on `windows-latest`,
+`ubuntu-latest`, and `macos-latest` for pushes, pull requests, and manual dispatch.
+Matrix jobs continue independently when another OS fails. Gradle uses `--continue`
+so independent checks still run after a failure. HTML and XML test reports are
+uploaded even on failed jobs; plugin ZIPs are uploaded only after successful checks.
+Artifacts are retained for 14 days. Inspect the Windows XML report for
+`WindowsCommandExecutorTest`: all five tests should run with no skips or failures.
+The Windows job explicitly fails if the native test report is missing, empty,
+or contains skips, failures, or errors.
+Adding the workflow does not establish a passing remote run; the first CI execution
+and Windows IDE visual acceptance are still pending.
+
 ```sh
 ./gradlew :frontend:test :backend:test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure --offline
 ```

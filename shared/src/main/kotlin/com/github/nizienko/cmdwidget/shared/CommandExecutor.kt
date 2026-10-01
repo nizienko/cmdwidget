@@ -42,6 +42,7 @@ class CommandExecutor(private val serviceScope: CoroutineScope) {
 
     private suspend fun runProcess(command: String, context: ExecutionContext): CommandResult {
         val contextError = context.error ?: when {
+            HostShell.forOperatingSystem(context.operatingSystem) == null -> "Unsupported execution host OS: ${context.operatingSystem}"
             command.isBlank() -> "Command must not be blank"
             context.workingDirectory == null -> "No usable working directory"
             !runCatching {
@@ -69,7 +70,8 @@ class CommandExecutor(private val serviceScope: CoroutineScope) {
                 try {
                     // This coroutine is already on IO. Keep the handle before any
                     // suspension so cancellation cannot lose a newly started process.
-                    process = ProcessBuilder(listOf(context.shell, "-lc", command))
+                    process = ProcessBuilder(HostShell.forOperatingSystem(context.operatingSystem)!!
+                        .commandLine(context.shell, command))
                         .directory(Path.of(context.workingDirectory!!).toFile())
                         .start()
                 } catch (failure: IOException) {

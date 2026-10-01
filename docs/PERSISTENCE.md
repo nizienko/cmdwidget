@@ -17,10 +17,20 @@ ordinary-mode Apply uses. Repeated equal states do not emit or restart execution
 The existing runtime reconciles by ID, preserving results and attempts on
 rename/order edits and cancelling changed execution definitions before replacement.
 
-New installations have no definitions. No demo or preset commands execute at
-startup. A missing state explicitly resets the list to empty, including when a
-remote endpoint sends an absent state. Missing interval, enabled, and presentation
-fields default to 10 seconds, true, and TEXT. Missing IDs receive UUIDs which are
+When no saved state exists, installations receive three enabled starter widgets:
+Time (`date '+%H:%M'`, 10 seconds), Project (`basename "$PWD"`, 60 seconds), and
+Disk usage (`df -P . | awk 'NR == 2 {print $5}'`, 60 seconds). They use standard
+macOS/Linux utilities. Windows installations seed the same widget names and
+intervals using Windows PowerShell, with explicit UTF-8 output. All execute on
+the backend in the default directory. Defaults follow the settings host OS;
+in mixed-OS split mode, edit commands for the execution host.
+Starter IDs are deterministic; frontend settings replace backend defaults during synchronization.
+Loading saved state replaces the starter list; an explicitly saved empty list
+remains empty after restart.
+The saved `initialized` flag keeps the XML state non-default even with no widgets,
+so removing all starters does not turn the next launch into a first installation.
+Missing interval, enabled, and presentation fields default to 10 seconds, true,
+and TEXT. Missing IDs receive UUIDs which are
 then saved; explicit blank IDs are invalid. Invalid names, commands, intervals,
 and unknown presentations are excluded. The first valid entry for each ID wins.
 Invalid entries are omitted from subsequent saved state. Apply rejects an invalid
@@ -32,9 +42,10 @@ list atomically. Returned XML beans are copies and cannot mutate effective state
 ./gradlew :backend:test :frontend:test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
 ```
 
-Four settings tests exercise XML serialization/restoration, stable generated IDs,
+Settings tests exercise XML serialization/restoration, stable generated IDs,
 defaulted fields, invalid entries, duplicate IDs, atomic validation, repeated
-Apply/load, absent-state reset, and synchronization direction. Platform RPC tests
+Apply/load, first-install defaults, saved empty lists, and synchronization direction.
+Executor tests run the starter commands in a directory with spaces. Platform RPC tests
 exercise saved configuration delivery, updates, result preservation on rename,
 removal, and independent results in two actual projects. Existing runtime tests
 cover cancellation, revisions, independent scheduling, and disposal.

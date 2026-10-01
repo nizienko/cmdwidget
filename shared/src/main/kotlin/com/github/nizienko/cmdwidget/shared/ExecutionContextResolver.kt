@@ -5,7 +5,6 @@ import java.net.InetAddress
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
-import java.util.Locale
 
 object ExecutionContextResolver {
     fun resolve(project: Project, workingDirectory: String = ""): ExecutionContext = resolve(
@@ -20,18 +19,25 @@ object ExecutionContextResolver {
         operatingSystem: String = System.getProperty("os.name"),
         workingDirectory: String = "",
     ): ExecutionContext {
-        val shell = environment["SHELL"]?.takeIf { value ->
+        val strategy = HostShell.forOperatingSystem(operatingSystem)
+        fun environmentValue(name: String) = environment.entries.firstOrNull {
+            it.key.equals(name, ignoreCase = strategy == HostShell.WINDOWS)
+        }?.value
+        val candidate = if (strategy == HostShell.WINDOWS) environmentValue("ComSpec") else environment["SHELL"]
+        val shell = candidate?.takeIf { value ->
             path(value)?.let { it.isAbsolute && Files.isRegularFile(it) && Files.isExecutable(it) } == true
-        } ?: "/bin/sh"
+        } ?: if (strategy == HostShell.WINDOWS) {
+            val systemRoot = environmentValue("SystemRoot")?.let(::path)?.takeIf { it.isAbsolute }
+            (systemRoot ?: Path.of("C:\\Windows")).resolve("System32").resolve("cmd.exe").toString()
+        } else "/bin/sh"
         val projectRoot = root?.let(::path)?.takeIf { it.isAbsolute }
         val custom = workingDirectory.takeUnless { it.isBlank() }
         val requested = custom?.let(::path)
         val directory = if (custom == null) projectRoot else requested?.let {
             if (it.isAbsolute) it else projectRoot?.resolve(it)
         }?.normalize()
-        val os = operatingSystem.lowercase(Locale.ROOT)
         val error = when {
-            !os.contains("mac") && !os.contains("linux") -> "Execution is supported only on macOS and Linux hosts"
+            strategy == null -> "Execution is supported only on macOS, Linux and Windows hosts"
             directory == null || !directory.isAbsolute || !Files.isDirectory(directory) ||
                 !Files.isReadable(directory) || !Files.isExecutable(directory) -> when {
                     custom == null -> "No usable project root directory"

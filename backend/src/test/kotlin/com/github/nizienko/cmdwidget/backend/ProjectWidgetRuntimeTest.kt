@@ -2,6 +2,7 @@ package com.github.nizienko.cmdwidget.backend
 
 import com.github.nizienko.cmdwidget.shared.CommandExecutor
 import com.github.nizienko.cmdwidget.shared.ExecutionContextResolver
+import com.github.nizienko.cmdwidget.shared.HostShell
 import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.github.nizienko.cmdwidget.shared.ProjectWidgetRuntime
 
@@ -249,7 +250,11 @@ class ProjectWidgetRuntimeTest {
         val backendContext = ExecutionContextResolver.resolve(root.toString(), mapOf("SHELL" to "/bin/sh"))
         val runtime = ProjectWidgetRuntime(owner, { backendContext }, executor::execute)
         val definitions = (1..5).map { index ->
-            definition(index.toString()).copy(command = "printf '%s' \"\$\$\" > '$root/pid-$index'; sleep 30")
+            val command = if (HostShell.forOperatingSystem(backendContext.operatingSystem) == HostShell.WINDOWS) {
+                "powershell.exe -NoProfile -NonInteractive -Command \"" +
+                    "[IO.File]::WriteAllText('pid-$index', [string]\$PID); Start-Sleep -Seconds 30\""
+            } else "printf '%s' \"\$\$\" > '$root/pid-$index'; sleep 30"
+            definition(index.toString()).copy(command = command)
         }
         runtime.reconcile(definitions)
         val pids = withTimeout(4_000) {

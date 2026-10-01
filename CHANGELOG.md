@@ -2,6 +2,12 @@
 
 # Cmd Widgets Changelog
 
+## [Unreleased]
+
+- Windows command execution through `cmd.exe`, with UTF-8 console setup and automatic host shell selection.
+- Windows PowerShell starter widgets for time, project name, and disk usage; existing saved commands are preserved.
+- Portable shell strategy tests and native Windows execution/cleanup tests (Windows run pending).
+
 ## [1.0] - 2026-10-01
 
 - Independent command-driven widgets with text, automatic percentage progress bars, global settings, and project-specific results.

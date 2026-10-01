@@ -4,6 +4,7 @@ import com.github.nizienko.cmdwidget.shared.CmdWidgetRpcApi
 import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
 import com.github.nizienko.cmdwidget.shared.ExecutionTarget
 import com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService
+import com.github.nizienko.cmdwidget.shared.HostShell
 import com.intellij.openapi.components.service
 import com.intellij.ide.impl.OpenProjectTask
 import com.intellij.openapi.project.ex.ProjectManagerEx
@@ -19,6 +20,9 @@ import kotlinx.coroutines.withTimeout
 
 /** The module test sandbox omits the root plugin descriptor; register its real provider in the fixture. */
 class CmdWidgetRpcTest : BasePlatformTestCase() {
+    private val windows = HostShell.forOperatingSystem(System.getProperty("os.name")) == HostShell.WINDOWS
+    private val directoryCommand get() = if (windows) "cd" else "pwd"
+    private fun outputCommand(text: String) = if (windows) "echo $text" else "printf $text"
     override fun setUp() {
         super.setUp()
         RemoteApiProvider.EP_NAME.point.registerExtension(CmdWidgetRpcApiProvider(), testRootDisposable)
@@ -41,7 +45,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
             runBlocking(Dispatchers.IO) {
                 withTimeout(5_000) {
                     val settings = service<CmdWidgetSettingsService>()
-                    val backend = CmdWidgetConfiguration("backend", "Backend", "pwd", 60,
+                    val backend = CmdWidgetConfiguration("backend", "Backend", directoryCommand, 60,
                         workingDirectory = "nested directory")
                     val frontend = CmdWidgetConfiguration("frontend", "Frontend", "printf frontend", 60,
                         executionTarget = ExecutionTarget.FRONTEND)
@@ -52,7 +56,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
                     }
                     assertEquals(listOf("backend"), snapshot.widgets.map { it.configuration.id })
                     assertTrue(snapshot.widgets.single().latestResult.toString(), snapshot.widgets.single().latestResult!!.successful)
-                    assertEquals(directory.toFile().canonicalPath + "\n", snapshot.widgets.single().latestResult!!.stdout)
+                    assertEquals(directory.toFile().canonicalPath, snapshot.widgets.single().latestResult!!.stdout.trim())
                     settings.replaceDefinitions(listOf(frontend, backend.copy(executionTarget = ExecutionTarget.FRONTEND)))
                     runtime.state.first { it.widgets.isEmpty() }
                 }
@@ -78,7 +82,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
             runBlocking(Dispatchers.IO) {
                 withTimeout(10_000) {
                     val settings = service<CmdWidgetSettingsService>()
-                    val definition = CmdWidgetConfiguration("shared", "Root", "pwd", 60)
+                    val definition = CmdWidgetConfiguration("shared", "Root", directoryCommand, 60)
                     settings.replaceDefinitions(listOf(definition))
                     val firstRuntime = firstProject.service<CmdWidgetProjectService>()
                     val secondRuntime = second.service<CmdWidgetProjectService>()
@@ -124,24 +128,24 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
             assertEquals(runtime.state.value, initial)
             val context = api.executionContext(id)
             assertNull("RPC test requires a usable backend project root", context.error)
-            val tested = api.testCommand(id, "printf explicit-test")
+            val tested = api.testCommand(id, outputCommand("explicit-test"))
             assertTrue(tested.toString(), tested.successful)
-            assertEquals("explicit-test", tested.stdout)
+            assertEquals("explicit-test", tested.stdout.trim())
             val customRoot = java.nio.file.Files.createTempDirectory("cmdwidget-rpc-directory")
             try {
                 val custom = api.executionContext(id, customRoot.toString())
                 assertNull(custom.error)
-                val customTest = api.testCommand(id, "pwd", customRoot.toString())
+                val customTest = api.testCommand(id, directoryCommand, customRoot.toString())
                 assertTrue(customTest.toString(), customTest.successful)
-                assertEquals(customRoot.toFile().canonicalPath + "\n", customTest.stdout)
+                assertEquals(customRoot.toFile().canonicalPath, customTest.stdout.trim())
             } finally { com.intellij.openapi.util.io.FileUtil.delete(customRoot.toFile()) }
             assertEquals(initial, api.observe(id).first())
 
-            settings.replaceDefinitions(listOf(CmdWidgetConfiguration("rpc", "RPC", "printf live", 60)))
+            settings.replaceDefinitions(listOf(CmdWidgetConfiguration("rpc", "RPC", outputCommand("live"), 60)))
             val observed = api.observe(id).first { it.widgets.singleOrNull()?.latestResult != null }
             assertEquals(runtime.state.value, observed)
             val result = observed.widgets.single().latestResult!!
-            assertEquals("live", result.stdout)
+            assertEquals("live", result.stdout.trim())
             assertEquals(observed, api.observe(id).first()) // Re-observation does not change state or start execution.
             val before = observed.widgets.single()
             settings.replaceDefinitions(listOf(before.configuration.copy(name = "Renamed")))
