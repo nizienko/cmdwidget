@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Test and build (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: >-
+          ./gradlew :backend:test :frontend:test buildPlugin
+          verifyPluginProjectConfiguration verifyPluginStructure
+          --continue --stacktrace --no-daemon
+
+      - name: Test and build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          .\gradlew.bat :backend:test :frontend:test buildPlugin
+          verifyPluginProjectConfiguration verifyPluginStructure
+          --continue --stacktrace --no-daemon
+
+      - name: Verify native Windows tests executed
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $reportPath = 'backend/build/test-results/test/TEST-com.github.nizienko.cmdwidget.backend.WindowsCommandExecutorTest.xml'
+          [xml]$report = Get-Content -LiteralPath $reportPath -Raw -ErrorAction Stop
+          $suite = $report.testsuite
+          if ([int]$suite.tests -lt 1 -or [int]$suite.skipped -ne 0 -or [int]$suite.failures -ne 0 -or [int]$suite.errors -ne 0) {
+            throw 'Native Windows execution tests must run without skips, failures, or errors.'
+          }
+          Write-Host "Native Windows execution tests passed: $($suite.tests)"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: |
+            backend/build/reports/tests/test/
+            backend/build/test-results/test/
+            frontend/build/reports/tests/test/
+            frontend/build/test-results/test/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v7
+        with:
+          name: cmdwidget-${{ matrix.os }}
+          path: build/distributions/*.zip
+          if-no-files-found: error
+          retention-days: 14
