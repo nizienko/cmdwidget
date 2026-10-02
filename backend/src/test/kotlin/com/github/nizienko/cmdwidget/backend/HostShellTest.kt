@@ -22,7 +22,7 @@ class HostShellTest {
 
     @Test fun `command remains one argument with quotes pipes and unicode`() {
         val command = "\"C:\\Program Files\\tool.exe\" \"Привет мир\" | findstr мир & exit /b 7"
-        assertEquals(listOf("cmd.exe", "/d", "/s", "/c", "chcp 65001 >nul && $command"),
+        assertEquals(listOf("cmd.exe", "/d", "/s", "/u", "/c", "chcp 65001 >nul && $command"),
             HostShell.WINDOWS.commandLine("cmd.exe", command))
         assertEquals(listOf("/bin/sh", "-lc", command), HostShell.POSIX.commandLine("/bin/sh", command))
     }

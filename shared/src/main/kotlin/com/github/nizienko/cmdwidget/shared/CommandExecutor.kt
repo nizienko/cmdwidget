@@ -113,7 +113,7 @@ class CommandExecutor(private val serviceScope: CoroutineScope) {
         }
         return CommandResult(
             context = context,
-            stdout = stdout.text(), stderr = stderr.text(), exitCode = exitCode,
+            stdout = stdout.text(context.operatingSystem), stderr = stderr.text(context.operatingSystem), exitCode = exitCode,
             timedOut = timedOut,
             durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started),
             completedAtEpochMillis = System.currentTimeMillis(),
@@ -197,7 +197,20 @@ class CommandExecutor(private val serviceScope: CoroutineScope) {
             }
         }
 
-        fun text(): String = bytes.toString(Charsets.UTF_8)
+        fun text(operatingSystem: String): String {
+            val content = bytes.toByteArray()
+            val windows = HostShell.forOperatingSystem(operatingSystem) == HostShell.WINDOWS
+            val utf16 = windows && looksLikeUtf16Le(content)
+            return content.toString(if (utf16) Charsets.UTF_16LE else Charsets.UTF_8).removePrefix("\uFEFF")
+        }
+
+        private fun looksLikeUtf16Le(content: ByteArray): Boolean {
+            if (content.size < 2 || content.size % 2 != 0) return false
+            if (content[0] == 0xff.toByte() && content[1] == 0xfe.toByte()) return true
+            var zeroHighBytes = 0
+            for (index in 1 until content.size step 2) if (content[index] == 0.toByte()) zeroHighBytes++
+            return zeroHighBytes >= 2 && zeroHighBytes * 8 >= content.size
+        }
     }
 
     companion object {

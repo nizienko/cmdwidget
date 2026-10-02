@@ -35,12 +35,18 @@ class WindowsCommandExecutorTest {
     }
 
     @Test(timeout = 15_000) fun `cmd handles unicode builtins pipes stderr and exit codes`() = runBlocking {
-        val result = executor.execute("echo Привет мир| findstr /c:\"Привет\" & echo diagnostic 1>&2 & exit /b 7", context)
-        assertEquals(7, result.exitCode)
-        assertEquals("Привет мир", result.stdout.trim())
-        assertEquals("diagnostic", result.stderr.trim())
-        assertFalse(result.successful)
-        assertNull(result.startupError)
+        val unicode = executor.execute("echo Привет мир", context)
+        assertEquals("Привет мир", unicode.stdout.trim())
+        assertTrue(unicode.toString(), unicode.successful)
+
+        // findstr's Unicode support varies by Windows version/code page. Keep
+        // the pipe coverage ASCII so this test measures our shell integration.
+        val piped = executor.execute("echo piped| findstr /c:\"piped\" & echo diagnostic 1>&2 & exit /b 7", context)
+        assertEquals(7, piped.exitCode)
+        assertEquals("piped", piped.stdout.trim())
+        assertEquals("diagnostic", piped.stderr.trim())
+        assertFalse(piped.successful)
+        assertNull(piped.startupError)
     }
 
     @Test(timeout = 15_000) fun `quoted executable and working directory with spaces execute correctly`() = runBlocking {
