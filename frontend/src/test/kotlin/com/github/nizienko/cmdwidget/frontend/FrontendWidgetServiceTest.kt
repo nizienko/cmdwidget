@@ -3,7 +3,6 @@ package com.github.nizienko.cmdwidget.frontend
 import com.github.nizienko.cmdwidget.shared.CmdWidgetConfiguration
 import com.github.nizienko.cmdwidget.shared.CmdWidgetSettingsService
 import com.github.nizienko.cmdwidget.shared.ExecutionTarget
-import com.github.nizienko.cmdwidget.shared.HostShell
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import kotlinx.coroutines.Dispatchers
@@ -18,10 +17,7 @@ class FrontendWidgetServiceTest : BasePlatformTestCase() {
         val saved = settings.effectiveDefinitions.value
         try {
             withTimeout(5_000) {
-                val directoryCommand = if (HostShell.forOperatingSystem(System.getProperty("os.name")) == HostShell.WINDOWS) {
-                    "cd"
-                } else "pwd"
-                val definition = CmdWidgetConfiguration("directory", "Directory", directoryCommand, 60,
+                val definition = CmdWidgetConfiguration("directory", "Directory", "pwd", 60,
                     executionTarget = ExecutionTarget.FRONTEND, workingDirectory = root.toString())
                 settings.replaceDefinitions(listOf(definition))
                 val runtime = project.service<FrontendWidgetService>()
@@ -30,7 +26,7 @@ class FrontendWidgetServiceTest : BasePlatformTestCase() {
                 } == true }
                 val result = snapshot.widgets.single().latestResult!!
                 assertTrue(result.toString(), result.successful)
-                assertTrue(java.nio.file.Files.isSameFile(root, java.nio.file.Path.of(result.stdout.trim())))
+                assertEquals(root.toFile().canonicalPath + "\n", result.stdout)
                 val missing = root.resolve("missing").toString()
                 assertNotNull(runtime.executionContext(missing).error)
                 val changed = definition.copy(workingDirectory = missing)

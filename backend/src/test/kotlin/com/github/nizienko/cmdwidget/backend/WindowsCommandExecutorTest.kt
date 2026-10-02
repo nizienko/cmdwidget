@@ -35,9 +35,9 @@ class WindowsCommandExecutorTest {
     }
 
     @Test(timeout = 15_000) fun `cmd handles unicode builtins pipes stderr and exit codes`() = runBlocking {
-        val result = executor.execute("echo Привет мир & echo pipeline | findstr pipeline & echo diagnostic 1>&2 & exit /b 7", context)
+        val result = executor.execute("echo Привет мир| findstr /c:\"Привет\" & echo diagnostic 1>&2 & exit /b 7", context)
         assertEquals(7, result.exitCode)
-        assertEquals(listOf("Привет мир", "pipeline"), result.stdout.trim().lines())
+        assertEquals("Привет мир", result.stdout.trim())
         assertEquals("diagnostic", result.stderr.trim())
         assertFalse(result.successful)
         assertNull(result.startupError)
