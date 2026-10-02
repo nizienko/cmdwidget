@@ -64,16 +64,22 @@ jobs:
           }
           Write-Host "Native Windows execution tests passed: $($suite.tests)"
 
-      - name: Upload test reports
+      # Run even when Gradle (or the Windows-only verification below) fails, so
+      # the failed test's HTML report and JUnit XML remain downloadable from
+      # the workflow run.
+      - name: Upload test reports and Gradle diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-reports-${{ matrix.os }}
           path: |
-            backend/build/reports/tests/test/
-            backend/build/test-results/test/
-            frontend/build/reports/tests/test/
-            frontend/build/test-results/test/
+            backend/build/reports/tests/**
+            backend/build/test-results/**
+            frontend/build/reports/tests/**
+            frontend/build/test-results/**
+            build/reports/problems/**
+            backend/build/reports/problems/**
+            frontend/build/reports/problems/**
           if-no-files-found: warn
           retention-days: 14
 
