@@ -8,9 +8,10 @@ enum class HostShell {
 
     fun commandLine(shell: String, command: String): List<String> = when (this) {
         POSIX -> listOf(shell, "-lc", command)
-        // /d disables AutoRun; /a avoids UTF-16 output from cmd built-ins.
-        // The code page applies to the shell and newly launched console programs.
-        WINDOWS -> listOf(shell, "/d", "/s", "/a", "/c", "chcp 65001 >nul && $command")
+        // /d disables AutoRun. Do not pass /a: it forces redirected output from
+        // cmd built-ins through the legacy ANSI code page and replaces Unicode
+        // characters before CommandExecutor can decode the stream as UTF-8.
+        WINDOWS -> listOf(shell, "/d", "/s", "/c", "chcp 65001 >nul && $command")
     }
 
     companion object {

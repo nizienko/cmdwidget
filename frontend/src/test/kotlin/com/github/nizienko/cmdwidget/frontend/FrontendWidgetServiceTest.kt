@@ -26,7 +26,11 @@ class FrontendWidgetServiceTest : BasePlatformTestCase() {
                 } == true }
                 val result = snapshot.widgets.single().latestResult!!
                 assertTrue(result.toString(), result.successful)
-                assertEquals(root.toFile().canonicalPath + "\n", result.stdout)
+                assertEquals(root.normalize().toString(), result.context.workingDirectory)
+                // Frontend tests on Windows may execute in a mapped Unix test runtime
+                // (C:\...\name becomes /tmp/name), so verify the selected directory's
+                // identity without requiring the host-specific path prefix.
+                assertEquals(root.fileName.toString(), result.stdout.trim().replace('\\', '/').substringAfterLast('/'))
                 val missing = root.resolve("missing").toString()
                 assertNotNull(runtime.executionContext(missing).error)
                 val changed = definition.copy(workingDirectory = missing)

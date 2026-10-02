@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import java.nio.file.Files
+import java.nio.file.Path
 
 /** The module test sandbox omits the root plugin descriptor; register its real provider in the fixture. */
 class CmdWidgetRpcTest : BasePlatformTestCase() {
@@ -56,7 +58,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
                     }
                     assertEquals(listOf("backend"), snapshot.widgets.map { it.configuration.id })
                     assertTrue(snapshot.widgets.single().latestResult.toString(), snapshot.widgets.single().latestResult!!.successful)
-                    assertEquals(directory.toFile().canonicalPath, snapshot.widgets.single().latestResult!!.stdout.trim())
+                    assertSamePath(directory, snapshot.widgets.single().latestResult!!.stdout.trim())
                     settings.replaceDefinitions(listOf(frontend, backend.copy(executionTarget = ExecutionTarget.FRONTEND)))
                     runtime.state.first { it.widgets.isEmpty() }
                 }
@@ -137,7 +139,7 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
                 assertNull(custom.error)
                 val customTest = api.testCommand(id, directoryCommand, customRoot.toString())
                 assertTrue(customTest.toString(), customTest.successful)
-                assertEquals(customRoot.toFile().canonicalPath, customTest.stdout.trim())
+                assertSamePath(customRoot, customTest.stdout.trim())
             } finally { com.intellij.openapi.util.io.FileUtil.delete(customRoot.toFile()) }
             assertEquals(initial, api.observe(id).first())
 
@@ -156,5 +158,9 @@ class CmdWidgetRpcTest : BasePlatformTestCase() {
             api.observe(id).first { it.widgets.isEmpty() }
             Unit
         }
+    }
+
+    private fun assertSamePath(expected: Path, actual: String) {
+        assertTrue("Expected '$actual' to identify '$expected'", Files.isSameFile(expected, Path.of(actual)))
     }
 }
