@@ -20,12 +20,14 @@ internal sealed interface BackendStateEvent {
 internal class BackendStateConnection(private val project: Project) {
     suspend fun observe(accept: (BackendStateEvent) -> Unit) {
         var session = 0L
+        var failing = false
         while (currentCoroutineContext().isActive) {
             try {
                 durable {
                     val currentSession = ++session
                     try {
                         CmdWidgetRpcApi.getInstance().observe(project.projectId()).collect {
+                            failing = false
                             accept(BackendStateEvent.Snapshot(currentSession, it))
                         }
                     } finally {
@@ -35,7 +37,11 @@ internal class BackendStateConnection(private val project: Project) {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                logger<BackendStateConnection>().debug("Cmd Widget backend connection failed; retrying", failure)
+                // Only the first failure of a streak is visible; retries repeat every second.
+                val log = logger<BackendStateConnection>()
+                if (failing) log.debug("Cmd Widget backend connection failed; retrying", failure)
+                else log.warn("Cmd Widget backend connection failed; retrying", failure)
+                failing = true
             }
             delay(1_000) // A normally completed subscription also reconnects without spinning.
         }

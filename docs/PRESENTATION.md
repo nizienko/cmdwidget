@@ -13,7 +13,10 @@ project service lifetime; their results do not change live widget state.
 
 Each frontend factory-owned host subscribes in its coroutine scope. The platform's
 `durable` wrapper retries RPC connection failures. A normally completed stream also
-reconnects with a one-second delay. Each subscription attempt has a frontend
+reconnects with a one-second delay. Backend widgets show pending, not
+disconnected, until the first attempt ends. The first failure of each failing
+streak is logged as a warning; repeated retries are logged at debug level.
+Each subscription attempt has a frontend
 session number. The host applies snapshots on the EDT, ignores older versions
 within a session, and ignores older or disconnected sessions. A new session can
 restore the same backend state or accept a restarted backend's lower version.

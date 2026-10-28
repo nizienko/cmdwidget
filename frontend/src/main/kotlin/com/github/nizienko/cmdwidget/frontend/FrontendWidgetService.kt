@@ -43,7 +43,8 @@ internal class FrontendWidgetService(private val project: Project, scope: Corout
 
     suspend fun observe(accept: (BackendStateEvent) -> Unit) = coroutineScope {
         val backend = MutableStateFlow(ProjectWidgetState())
-        val connected = MutableStateFlow(false)
+        // Pending rather than disconnected until the first connection attempt ends.
+        val connected = MutableStateFlow(true)
         launch {
             BackendStateConnection(project).observe { event ->
                 when (event) {
